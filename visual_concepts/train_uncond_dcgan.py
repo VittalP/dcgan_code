@@ -10,6 +10,8 @@ from matplotlib import pyplot as plt
 from sklearn.externals import joblib
 
 import theano
+import theano.sandbox.cuda
+theano.sandbox.cuda.use('gpu1')
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv
 
@@ -22,8 +24,9 @@ from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, l2normalize
 from lib.metrics import nnc_score, nnd_score
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import OneHot, shuffle, iter_data, center_crop, patch
+from lib.config import data_dir
 
-from load import faces
+from load import visual_concepts
 
 def transform(X):
     X = [center_crop(x, npx) for x in X]
@@ -40,22 +43,31 @@ b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 64          # # of pixels width/height of images
-nz = 100          # # of dim for Z
+# nz is set later by looking at the feature vector length
+# nz = 100          # # of dim for Z
 ngf = 128         # # of gen filters in first conv layer
 ndf = 128         # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 25        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
-ntrain = 350000   # # of examples to train on
 
-tr_data, te_data, tr_stream, val_stream, te_stream = faces(ntrain=ntrain)
+path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
+tr_data, tr_stream = visual_concepts(path, ntrain=None)
+
+patches_idx = tr_stream.dataset.provides_sources.index('patches')
+labels_idx = tr_stream.dataset.provides_sources.index('labels')
+feat_l2_idx = tr_stream.dataset.provides_sources.index('feat_l2')
+feat_orig_idx = tr_stream.dataset.provides_sources.index('feat_orig')
 
 tr_handle = tr_data.open()
-vaX, = tr_data.get_data(tr_handle, slice(0, 10000))
+data = tr_data.get_data(tr_handle, slice(0, 10000))
+vaX = data[patches_idx]
 vaX = transform(vaX)
 
-desc = 'uncond_dcgan'
+nz = data[feat_l2_idx].shape[1]  # Length of the population encoding vector
+ntrain = tr_data.num_examples  # # of examples to train on
+desc = 'vcgan'
 model_dir = 'models/%s'%desc
 samples_dir = 'samples/%s'%desc
 if not os.path.exists('logs/'):
@@ -158,7 +170,8 @@ vis_idxs = py_rng.sample(np.arange(len(vaX)), nvis)
 vaX_vis = inverse_transform(vaX[vis_idxs])
 color_grid_vis(vaX_vis, (14, 14), 'samples/%s_etl_test.png'%desc)
 
-sample_zmb = floatX(np_rng.uniform(-1., 1., size=(nvis, nz)))
+#sample_zmb = floatX(np_rng.uniform(-1., 1., size=(nvis, nz)))
+sample_zmb = floatX(data[feat_l2_idx][vis_idxs,:])
 
 def gen_samples(n, nbatch=128):
     samples = []
@@ -197,9 +210,15 @@ n_updates = 0
 n_examples = 0
 t = time()
 for epoch in range(niter):
-    for imb, in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
+    for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
+
+        imb = data[patches_idx]
         imb = transform(imb)
-        zmb = floatX(np_rng.uniform(-1., 1., size=(len(imb), nz)))
+
+        # "Noise" is no longer random noise. We replace it with the population encoding vector
+        #zmb = floatX(np_rng.uniform(-1., 1., size=(len(imb), nz)))
+        zmb = floatX(data[feat_l2_idx])
+
         if n_updates % (k+1) == 0:
             cost = _train_g(imb, zmb)
         else:
@@ -208,13 +227,15 @@ for epoch in range(niter):
         n_examples += len(imb)
     g_cost = float(cost[0])
     d_cost = float(cost[1])
-    gX = gen_samples(100000)
-    gX = gX.reshape(len(gX), -1)
-    va_nnd_1k = nnd_score(gX[:1000], vaX, metric='euclidean')
-    va_nnd_10k = nnd_score(gX[:10000], vaX, metric='euclidean')
-    va_nnd_100k = nnd_score(gX[:100000], vaX, metric='euclidean')
-    log = [n_epochs, n_updates, n_examples, time()-t, va_nnd_1k, va_nnd_10k, va_nnd_100k, g_cost, d_cost]
-    print '%.0f %.2f %.2f %.2f %.4f %.4f'%(epoch, va_nnd_1k, va_nnd_10k, va_nnd_100k, g_cost, d_cost)
+    # gX = gen_samples(100000)
+    # gX = gX.reshape(len(gX), -1)
+    # va_nnd_1k = nnd_score(gX[:1000], vaX, metric='euclidean')
+    # va_nnd_10k = nnd_score(gX[:10000], vaX, metric='euclidean')
+    # va_nnd_100k = nnd_score(gX[:100000], vaX, metric='euclidean')
+    # log = [n_epochs, n_updates, n_examples, time()-t, va_nnd_1k, va_nnd_10k, va_nnd_100k, g_cost, d_cost]
+    log = [n_epochs, n_updates, n_examples, time() - t, g_cost, d_cost]
+    # print '%.0f %.2f %.2f %.2f %.4f %.4f'%(epoch, va_nnd_1k, va_nnd_10k, va_nnd_100k, g_cost, d_cost)
+    print '%.0f %.4f %.4f' % (epoch, g_cost, d_cost)
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
 
