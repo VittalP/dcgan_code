@@ -44,8 +44,8 @@ def dropout(X, p=0.):
     return X
 
 def conv_cond_concat(x, y):
-    """ 
-    concatenate conditioning vector on feature map axis 
+    """
+    concatenate conditioning vector on feature map axis
     """
     return T.concatenate([x, y*T.ones((x.shape[0], y.shape[1], x.shape[2], x.shape[3]))], axis=1)
 
@@ -83,7 +83,7 @@ def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8):
     return X
 
 def deconv(X, w, subsample=(1, 1), border_mode=(0, 0), conv_mode='conv'):
-    """ 
+    """
     sets up dummy convolutional forward pass and uses its grad as deconv
     currently only tested/working with same padding
     """

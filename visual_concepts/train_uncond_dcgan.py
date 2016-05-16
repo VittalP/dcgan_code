@@ -11,7 +11,6 @@ from sklearn.externals import joblib
 
 import theano
 import theano.sandbox.cuda
-theano.sandbox.cuda.use('gpu1')
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv
 
@@ -25,16 +24,11 @@ from lib.metrics import nnc_score, nnd_score
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import OneHot, shuffle, iter_data, center_crop, patch
 from lib.config import data_dir
+from lib import models
+
+from lib.img_utils import inverse_transform, transform
 
 from load import visual_concepts
-
-def transform(X):
-    X = [center_crop(x, npx) for x in X]
-    return floatX(X).transpose(0, 3, 1, 2)/127.5 - 1.
-
-def inverse_transform(X):
-    X = (X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1)+1.)/2.
-    return X
 
 k = 1             # # of discrim updates for each gen update
 l2 = 1e-5         # l2 weight decay
@@ -44,7 +38,7 @@ nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 64          # # of pixels width/height of images
 # nz is set later by looking at the feature vector length
-# nz = 100          # # of dim for Z
+nz = 100          # # of dim for Z
 ngf = 128         # # of gen filters in first conv layer
 ndf = 128         # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
@@ -63,11 +57,11 @@ feat_orig_idx = tr_stream.dataset.provides_sources.index('feat_orig')
 tr_handle = tr_data.open()
 data = tr_data.get_data(tr_handle, slice(0, 10000))
 vaX = data[patches_idx]
-vaX = transform(vaX)
+vaX = transform(vaX, npx)
 
-nz = data[feat_l2_idx].shape[1]  # Length of the population encoding vector
+# nz = data[feat_l2_idx].shape[1]  # Length of the population encoding vector
 ntrain = tr_data.num_examples  # # of examples to train on
-desc = 'vcgan'
+desc = 'vcgan_noise'
 model_dir = 'models/%s'%desc
 samples_dir = 'samples/%s'%desc
 if not os.path.exists('logs/'):
@@ -76,12 +70,6 @@ if not os.path.exists(model_dir):
     os.makedirs(model_dir)
 if not os.path.exists(samples_dir):
     os.makedirs(samples_dir)
-
-relu = activations.Rectify()
-sigmoid = activations.Sigmoid()
-lrelu = activations.LeakyRectify()
-tanh = activations.Tanh()
-bce = T.nnet.binary_crossentropy
 
 gifn = inits.Normal(scale=0.02)
 difn = inits.Normal(scale=0.02)
@@ -116,32 +104,14 @@ dwy = difn((ndf*8*4*4, 1), 'dwy')
 
 gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
 discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy]
-
-def gen(Z, w, g, b, w2, g2, b2, w3, g3, b3, w4, g4, b4, wx):
-    h = relu(batchnorm(T.dot(Z, w), g=g, b=b))
-    h = h.reshape((h.shape[0], ngf*8, 4, 4))
-    h2 = relu(batchnorm(deconv(h, w2, subsample=(2, 2), border_mode=(2, 2)), g=g2, b=b2))
-    h3 = relu(batchnorm(deconv(h2, w3, subsample=(2, 2), border_mode=(2, 2)), g=g3, b=b3))
-    h4 = relu(batchnorm(deconv(h3, w4, subsample=(2, 2), border_mode=(2, 2)), g=g4, b=b4))
-    x = tanh(deconv(h4, wx, subsample=(2, 2), border_mode=(2, 2)))
-    return x
-
-def discrim(X, w, w2, g2, b2, w3, g3, b3, w4, g4, b4, wy):
-    h = lrelu(dnn_conv(X, w, subsample=(2, 2), border_mode=(2, 2)))
-    h2 = lrelu(batchnorm(dnn_conv(h, w2, subsample=(2, 2), border_mode=(2, 2)), g=g2, b=b2))
-    h3 = lrelu(batchnorm(dnn_conv(h2, w3, subsample=(2, 2), border_mode=(2, 2)), g=g3, b=b3))
-    h4 = lrelu(batchnorm(dnn_conv(h3, w4, subsample=(2, 2), border_mode=(2, 2)), g=g4, b=b4))
-    h4 = T.flatten(h4, 2)
-    y = sigmoid(T.dot(h4, wy))
-    return y
-
+print(type(gb)); import sys; sys.exit();
 X = T.tensor4()
 Z = T.matrix()
 
-gX = gen(Z, *gen_params)
+gX = models.gen(Z, *gen_params)
 
-p_real = discrim(X, *discrim_params)
-p_gen = discrim(gX, *discrim_params)
+p_real = models.discrim(X, *discrim_params)
+p_gen = models.discrim(gX, *discrim_params)
 
 d_cost_real = bce(p_real, T.ones(p_real.shape)).mean()
 d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
@@ -167,11 +137,11 @@ _gen = theano.function([Z], gX)
 print '%.2f seconds to compile theano functions'%(time()-t)
 
 vis_idxs = py_rng.sample(np.arange(len(vaX)), nvis)
-vaX_vis = inverse_transform(vaX[vis_idxs])
+vaX_vis = inverse_transform(vaX[vis_idxs], nc, npx)
 color_grid_vis(vaX_vis, (14, 14), 'samples/%s_etl_test.png'%desc)
 
-#sample_zmb = floatX(np_rng.uniform(-1., 1., size=(nvis, nz)))
-sample_zmb = floatX(data[feat_l2_idx][vis_idxs,:])
+sample_zmb = floatX(np_rng.uniform(-1., 1., size=(nvis, nz)))
+# sample_zmb = floatX(data[feat_l2_idx][vis_idxs,:])
 
 def gen_samples(n, nbatch=128):
     samples = []
@@ -184,14 +154,14 @@ def gen_samples(n, nbatch=128):
     n_left = n-n_gen
     zmb = floatX(np_rng.uniform(-1., 1., size=(n_left, nz)))
     xmb = _gen(zmb)
-    samples.append(xmb)    
+    samples.append(xmb)
     return np.concatenate(samples, axis=0)
 
 f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
-    'n_epochs', 
-    'n_updates', 
-    'n_examples', 
+    'n_epochs',
+    'n_updates',
+    'n_examples',
     'n_seconds',
     '1k_va_nnd',
     '10k_va_nnd',
@@ -213,11 +183,11 @@ for epoch in range(niter):
     for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
 
         imb = data[patches_idx]
-        imb = transform(imb)
+        imb = transform(imb, npx)
 
         # "Noise" is no longer random noise. We replace it with the population encoding vector
-        #zmb = floatX(np_rng.uniform(-1., 1., size=(len(imb), nz)))
-        zmb = floatX(data[feat_l2_idx])
+        zmb = floatX(np_rng.uniform(-1., 1., size=(len(imb), nz)))
+        # zmb = floatX(data[feat_l2_idx])
 
         if n_updates % (k+1) == 0:
             cost = _train_g(imb, zmb)
@@ -240,7 +210,7 @@ for epoch in range(niter):
     f_log.flush()
 
     samples = np.asarray(_gen(sample_zmb))
-    color_grid_vis(inverse_transform(samples), (14, 14), 'samples/%s/%d.png'%(desc, n_epochs))
+    color_grid_vis(inverse_transform(samples, nc, npx), (14, 14), 'samples/%s/%d.png'%(desc, n_epochs))
     n_epochs += 1
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
