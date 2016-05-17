@@ -1,3 +1,6 @@
+from lib.data_utils import center_crop
+from lib.theano_utils import floatX
+
 def transform(X, npx):
     X = [center_crop(x, npx) for x in X]
     return floatX(X).transpose(0, 3, 1, 2)/127.5 - 1.
