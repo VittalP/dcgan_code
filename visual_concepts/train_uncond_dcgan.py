@@ -12,7 +12,6 @@ from sklearn.externals import joblib
 import theano
 import theano.sandbox.cuda
 import theano.tensor as T
-from theano.sandbox.cuda.dnn import dnn_conv
 
 from lib import activations
 from lib import updates
@@ -38,7 +37,7 @@ nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 64          # # of pixels width/height of images
 # nz is set later by looking at the feature vector length
-nz = 100          # # of dim for Z
+# nz = 100          # # of dim for Z
 ngf = 128         # # of gen filters in first conv layer
 ndf = 128         # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
@@ -54,14 +53,19 @@ labels_idx = tr_stream.dataset.provides_sources.index('labels')
 feat_l2_idx = tr_stream.dataset.provides_sources.index('feat_l2')
 feat_orig_idx = tr_stream.dataset.provides_sources.index('feat_orig')
 
+zmb_idx = feat_orig_idx
+
 tr_handle = tr_data.open()
 data = tr_data.get_data(tr_handle, slice(0, 10000))
 vaX = data[patches_idx]
 vaX = transform(vaX, npx)
 
-# nz = data[feat_l2_idx].shape[1]  # Length of the population encoding vector
+data = tr_data.get_data(tr_handle, slice(0, tr_data.num_examples))
+nvc = np.max(data[labels_idx]) # Number of visual concepts
+assert nvc == 176 # Debugging code. Remove it later
+nz = data[feat_l2_idx].shape[1]  # Length of the population encoding vector
 ntrain = tr_data.num_examples  # # of examples to train on
-desc = 'vcgan_noise'
+desc = 'vcgan_orig_multi'
 model_dir = 'models/%s'%desc
 samples_dir = 'samples/%s'%desc
 if not os.path.exists('logs/'):
@@ -101,24 +105,34 @@ dw4 = difn((ndf*8, ndf*4, 5, 5), 'dw4')
 dg4 = gain_ifn((ndf*8), 'dg4')
 db4 = bias_ifn((ndf*8), 'db4')
 dwy = difn((ndf*8*4*4, 1), 'dwy')
+dwmy = difn((ndf*8*4*4, nvc), 'dwmy')
 
 gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
-discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy]
-print(type(gb)); import sys; sys.exit();
+discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy, dwmy]
+
 X = T.tensor4()
 Z = T.matrix()
+Y = T.matrix()
 
 gX = models.gen(Z, *gen_params)
 
-p_real = models.discrim(X, *discrim_params)
-p_gen = models.discrim(gX, *discrim_params)
+p_real, p_real_multi = models.discrim(X, *discrim_params)
+p_gen, p_gen_multi = models.discrim(gX, *discrim_params)
 
-d_cost_real = bce(p_real, T.ones(p_real.shape)).mean()
+bce = T.nnet.binary_crossentropy
+cce = T.nnet.categorical_crossentropy
+
+d_cost_real = bce(p_real, T.ones(p_real.shape)).mean() # bce is defined in models.py
 d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
-g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
 
-d_cost = d_cost_real + d_cost_gen
-g_cost = g_cost_d
+d_cost_multi_real = cce(p_real_multi, Y).mean()
+d_cost_multi_gen = cce(p_gen_multi, Y).mean()
+
+g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
+g_cost_multi_d = cce(p_gen_multi, Y).mean()
+
+d_cost = d_cost_real + d_cost_gen + d_cost_multi_real + d_cost_multi_gen
+g_cost = g_cost_d + g_cost_multi_d
 
 cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
 
@@ -131,8 +145,8 @@ updates = d_updates + g_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([X, Z], cost, updates=g_updates)
-_train_d = theano.function([X, Z], cost, updates=d_updates)
+_train_g = theano.function([X, Y, Z], cost, updates=g_updates)
+_train_d = theano.function([X, Y, Z], cost, updates=d_updates)
 _gen = theano.function([Z], gX)
 print '%.2f seconds to compile theano functions'%(time()-t)
 
@@ -140,8 +154,8 @@ vis_idxs = py_rng.sample(np.arange(len(vaX)), nvis)
 vaX_vis = inverse_transform(vaX[vis_idxs], nc, npx)
 color_grid_vis(vaX_vis, (14, 14), 'samples/%s_etl_test.png'%desc)
 
-sample_zmb = floatX(np_rng.uniform(-1., 1., size=(nvis, nz)))
-# sample_zmb = floatX(data[feat_l2_idx][vis_idxs,:])
+# sample_zmb = floatX(np_rng.uniform(-1., 1., size=(nvis, nz)))
+sample_zmb = floatX(data[zmb_idx][vis_idxs,:])
 
 def gen_samples(n, nbatch=128):
     samples = []
@@ -185,14 +199,22 @@ for epoch in range(niter):
         imb = data[patches_idx]
         imb = transform(imb, npx)
 
+        labels = data[labels_idx]
+        label_stack = np.array([], dtype=np.uint8).reshape(0,nvc)
+        for label in labels:
+            hot_vec = np.zeros((1,nvc), dtype=np.uint8)
+            hot_vec[0,label-1] = 1 # labels are 1-nvc
+            label_stack = np.vstack((label_stack, hot_vec))
+
+        ymb = label_stack
         # "Noise" is no longer random noise. We replace it with the population encoding vector
-        zmb = floatX(np_rng.uniform(-1., 1., size=(len(imb), nz)))
-        # zmb = floatX(data[feat_l2_idx])
+        # zmb = floatX(np_rng.uniform(-1., 1., size=(len(imb), nz)))
+        zmb = floatX(data[zmb_idx])
 
         if n_updates % (k+1) == 0:
-            cost = _train_g(imb, zmb)
+            cost = _train_g(imb, ymb, zmb)
         else:
-            cost = _train_d(imb, zmb)
+            cost = _train_d(imb, ymb, zmb)
         n_updates += 1
         n_examples += len(imb)
     g_cost = float(cost[0])
