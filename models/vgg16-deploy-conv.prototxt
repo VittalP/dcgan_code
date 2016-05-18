@@ -2,8 +2,8 @@ name: "VGG_ILSVRC_16_layers"
 input: "data"
 input_dim: 1
 input_dim: 3
-input_dim: 64
-input_dim: 64
+input_dim: 100
+input_dim: 100
 layers {
   bottom: "data"
   top: "conv1_1"
@@ -11,7 +11,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 64
-    pad: 1
     kernel_size: 3
   }
 }
@@ -28,7 +27,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 64
-    pad: 1
     kernel_size: 3
   }
 }
@@ -56,7 +54,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 128
-    pad: 1
     kernel_size: 3
   }
 }
@@ -73,7 +70,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 128
-    pad: 1
     kernel_size: 3
   }
 }
@@ -101,7 +97,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 256
-    pad: 1
     kernel_size: 3
   }
 }
@@ -118,7 +113,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 256
-    pad: 1
     kernel_size: 3
   }
 }
@@ -135,7 +129,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 256
-    pad: 1
     kernel_size: 3
   }
 }
@@ -163,7 +156,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 512
-    pad: 1
     kernel_size: 3
   }
 }
@@ -180,7 +172,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 512
-    pad: 1
     kernel_size: 3
   }
 }
@@ -197,7 +188,6 @@ layers {
   type: CONVOLUTION
   convolution_param {
     num_output: 512
-    pad: 1
     kernel_size: 3
   }
 }

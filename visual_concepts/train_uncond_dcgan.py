@@ -23,6 +23,7 @@ from lib.metrics import nnc_score, nnd_score
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import OneHot, shuffle, iter_data, center_crop, patch
 from lib.config import data_dir
+import lib.utils as utils
 from lib import models
 
 from lib.img_utils import inverse_transform, transform
@@ -41,10 +42,10 @@ npx = 64          # # of pixels width/height of images
 ngf = 128         # # of gen filters in first conv layer
 ndf = 128         # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 25        # # of iter at starting learning rate
+niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
-
+desc = 'vcgan_orig_multi'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None)
 
@@ -53,7 +54,10 @@ labels_idx = tr_stream.dataset.provides_sources.index('labels')
 feat_l2_idx = tr_stream.dataset.provides_sources.index('feat_l2')
 feat_orig_idx = tr_stream.dataset.provides_sources.index('feat_orig')
 
-zmb_idx = feat_orig_idx
+if "orig" in desc:
+    zmb_idx = feat_orig_idx
+else:
+    zmb_idx = feat_l2_idx
 
 tr_handle = tr_data.open()
 data = tr_data.get_data(tr_handle, slice(0, 10000))
@@ -65,7 +69,7 @@ nvc = np.max(data[labels_idx]) # Number of visual concepts
 assert nvc == 176 # Debugging code. Remove it later
 nz = data[feat_l2_idx].shape[1]  # Length of the population encoding vector
 ntrain = tr_data.num_examples  # # of examples to train on
-desc = 'vcgan_orig_multi'
+
 model_dir = 'models/%s'%desc
 samples_dir = 'samples/%s'%desc
 if not os.path.exists('logs/'):
@@ -75,40 +79,50 @@ if not os.path.exists(model_dir):
 if not os.path.exists(samples_dir):
     os.makedirs(samples_dir)
 
-gifn = inits.Normal(scale=0.02)
-difn = inits.Normal(scale=0.02)
-gain_ifn = inits.Normal(loc=1., scale=0.02)
-bias_ifn = inits.Constant(c=0.)
+latest_epoch = utils.getLatestModelNum(model_dir)
 
-gw  = gifn((nz, ngf*8*4*4), 'gw')
-gg = gain_ifn((ngf*8*4*4), 'gg')
-gb = bias_ifn((ngf*8*4*4), 'gb')
-gw2 = gifn((ngf*8, ngf*4, 5, 5), 'gw2')
-gg2 = gain_ifn((ngf*4), 'gg2')
-gb2 = bias_ifn((ngf*4), 'gb2')
-gw3 = gifn((ngf*4, ngf*2, 5, 5), 'gw3')
-gg3 = gain_ifn((ngf*2), 'gg3')
-gb3 = bias_ifn((ngf*2), 'gb3')
-gw4 = gifn((ngf*2, ngf, 5, 5), 'gw4')
-gg4 = gain_ifn((ngf), 'gg4')
-gb4 = bias_ifn((ngf), 'gb4')
-gwx = gifn((ngf, nc, 5, 5), 'gwx')
+if latest_epoch == -1:
+    print "Initializing weights from scratch"
+    gifn = inits.Normal(scale=0.02)
+    difn = inits.Normal(scale=0.02)
+    gain_ifn = inits.Normal(loc=1., scale=0.02)
+    bias_ifn = inits.Constant(c=0.)
 
-dw  = difn((ndf, nc, 5, 5), 'dw')
-dw2 = difn((ndf*2, ndf, 5, 5), 'dw2')
-dg2 = gain_ifn((ndf*2), 'dg2')
-db2 = bias_ifn((ndf*2), 'db2')
-dw3 = difn((ndf*4, ndf*2, 5, 5), 'dw3')
-dg3 = gain_ifn((ndf*4), 'dg3')
-db3 = bias_ifn((ndf*4), 'db3')
-dw4 = difn((ndf*8, ndf*4, 5, 5), 'dw4')
-dg4 = gain_ifn((ndf*8), 'dg4')
-db4 = bias_ifn((ndf*8), 'db4')
-dwy = difn((ndf*8*4*4, 1), 'dwy')
-dwmy = difn((ndf*8*4*4, nvc), 'dwmy')
+    gw  = gifn((nz, ngf*8*4*4), 'gw')
+    gg = gain_ifn((ngf*8*4*4), 'gg')
+    gb = bias_ifn((ngf*8*4*4), 'gb')
+    gw2 = gifn((ngf*8, ngf*4, 5, 5), 'gw2')
+    gg2 = gain_ifn((ngf*4), 'gg2')
+    gb2 = bias_ifn((ngf*4), 'gb2')
+    gw3 = gifn((ngf*4, ngf*2, 5, 5), 'gw3')
+    gg3 = gain_ifn((ngf*2), 'gg3')
+    gb3 = bias_ifn((ngf*2), 'gb3')
+    gw4 = gifn((ngf*2, ngf, 5, 5), 'gw4')
+    gg4 = gain_ifn((ngf), 'gg4')
+    gb4 = bias_ifn((ngf), 'gb4')
+    gwx = gifn((ngf, nc, 5, 5), 'gwx')
 
-gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
-discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy, dwmy]
+    dw  = difn((ndf, nc, 5, 5), 'dw')
+    dw2 = difn((ndf*2, ndf, 5, 5), 'dw2')
+    dg2 = gain_ifn((ndf*2), 'dg2')
+    db2 = bias_ifn((ndf*2), 'db2')
+    dw3 = difn((ndf*4, ndf*2, 5, 5), 'dw3')
+    dg3 = gain_ifn((ndf*4), 'dg3')
+    db3 = bias_ifn((ndf*4), 'db3')
+    dw4 = difn((ndf*8, ndf*4, 5, 5), 'dw4')
+    dg4 = gain_ifn((ndf*8), 'dg4')
+    db4 = bias_ifn((ndf*8), 'db4')
+    dwy = difn((ndf*8*4*4, 1), 'dwy')
+    dwmy = difn((ndf*8*4*4, nvc), 'dwmy')
+
+    gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
+    discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy, dwmy]
+    iter_array = range(niter)
+else:
+    print "Initializing weights from %d epoch network" % (latest_epoch)
+    gen_params = [sharedX(element) for element in joblib.load(model_dir + "/%s"%(str(latest_epoch)) + "_gen_params.jl")]
+    discrim_params = [sharedX(element) for element in joblib.load(model_dir + "/%s"%(str(latest_epoch)) + "_discrim_params.jl")]
+    iter_array = range(latest_epoch,niter)
 
 X = T.tensor4()
 Z = T.matrix()
@@ -189,11 +203,11 @@ vaX = vaX.reshape(len(vaX), -1)
 print desc.upper()
 n_updates = 0
 n_check = 0
-n_epochs = 0
+n_epochs = iter_array[0]
 n_updates = 0
 n_examples = 0
 t = time()
-for epoch in range(niter):
+for epoch in iter_array:
     for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
 
         imb = data[patches_idx]
@@ -236,6 +250,6 @@ for epoch in range(niter):
     n_epochs += 1
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
-    if n_epochs in [1, 2, 3, 4, 5, 10, 15, 20, 25]:
+    if n_epochs % 5 == 0:
         joblib.dump([p.get_value() for p in gen_params], 'models/%s/%d_gen_params.jl'%(desc, n_epochs))
         joblib.dump([p.get_value() for p in discrim_params], 'models/%s/%d_discrim_params.jl'%(desc, n_epochs))
