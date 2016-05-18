@@ -37,15 +37,30 @@ def discrim(X, w, w2, g2, b2, w3, g3, b3, w4, g4, b4, wy, wmy):
     multi_y = softmax(T.dot(h4, wmy))
     return y, multi_y
 
-# def vgg16():
-#     model_def = '../models/vgg16-deploy-conv.prototxt'
-#     model_weights = '../models/vgg16.caffemodel'
-#     if not os.path.isfile(model_weights):
-#         print "Download VGG-16 model and place in dcgan_code/models directory."
-#         print "Exiting..."
-#         sys.exit()
-#
-#     net = caffe.Net(model_def, model_weights, caffe.TEST)
-#     net_conv.blobs['data'].data[...] = caffe.io.load_image('../models/vc.jpg')
-#     out = net.forward()
-#     pool4_feat = out['pool4']
+def vgg16(imb):
+    model_def = '../models/vgg16-deploy-conv.prototxt'
+    model_weights = '../models/vgg16.caffemodel'
+    if not os.path.isfile(model_weights):
+        print "Download VGG-16 model and place in dcgan_code/models directory."
+        print "Exiting..."
+        sys.exit()
+
+    # Data preprocessing for inputting to VGG16
+    # Convert back to RGB values [0,255]
+    if np.min(imb) < 0:
+        imb = inverse_transform(imb, 3, 64, 64)*255
+
+    # VGG needs 100x100 patches
+    if imb.shape[2] != 100:
+        import scipy
+        vgg_imb = np.zeros((imb.shape[0], 100, 100, 3))
+        for ii in range(imb.shape[0]):
+            img = scipy.misc.imresize(np.squeeze(imb[ii,::-1]), (100,100,3))
+            img = img - np.array((104.00698793,116.66876762,122.67891434))
+            vgg_imb[ii,...] = img.transpose((2,0,1))
+
+    net = caffe.Net(model_def, model_weights, caffe.TEST)
+    net_conv.blobs['data'].data[...] = vgg_imb
+    out = net.forward()
+    pool4_feat = np.squeeze(out['pool4'])
+    return pool4_feat
