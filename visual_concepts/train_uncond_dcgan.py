@@ -45,7 +45,7 @@ nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
-
+desc = 'vcgan_orig_multi'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None)
 
@@ -54,7 +54,10 @@ labels_idx = tr_stream.dataset.provides_sources.index('labels')
 feat_l2_idx = tr_stream.dataset.provides_sources.index('feat_l2')
 feat_orig_idx = tr_stream.dataset.provides_sources.index('feat_orig')
 
-zmb_idx = feat_orig_idx
+if "orig" in desc:
+    zmb_idx = feat_orig_idx
+else:
+    zmb_idx = feat_l2_idx
 
 tr_handle = tr_data.open()
 data = tr_data.get_data(tr_handle, slice(0, 10000))
@@ -66,7 +69,7 @@ nvc = np.max(data[labels_idx]) # Number of visual concepts
 assert nvc == 176 # Debugging code. Remove it later
 nz = data[feat_l2_idx].shape[1]  # Length of the population encoding vector
 ntrain = tr_data.num_examples  # # of examples to train on
-desc = 'vcgan_l2_multi'
+
 model_dir = 'models/%s'%desc
 samples_dir = 'samples/%s'%desc
 if not os.path.exists('logs/'):
