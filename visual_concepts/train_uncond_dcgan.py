@@ -45,7 +45,7 @@ nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
-desc = 'vcgan_orig_multi'
+desc = 'vcgan_l2_multi_recon'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None)
 
@@ -144,9 +144,10 @@ d_cost_multi_gen = cce(p_gen_multi, Y).mean()
 
 g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
 g_cost_multi_d = cce(p_gen_multi, Y).mean()
+g_cost_recon = T.mean(T.sqr(gX - X))
 
 d_cost = d_cost_real + d_cost_gen + d_cost_multi_real + d_cost_multi_gen
-g_cost = g_cost_d + g_cost_multi_d
+g_cost = g_cost_d + g_cost_multi_d + g_cost_recon
 
 cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
 
