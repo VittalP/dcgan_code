@@ -17,12 +17,14 @@ dcgan_root = "/mnt/disk1/vittal/dcgan_code/visual_concepts/"
 
 desc = "vcgan_orig_multi"
 model_dir = dcgan_root + '/models/%s/'%desc
-model_number = "25_gen_params.jl"
+model_number = "20_gen_params.jl"
 gen_params_np = joblib.load(model_dir + model_number)
 gen_params = [sharedX(element) for element in gen_params_np]
 vc_num = 10
 Z = T.matrix()
 gX = models.gen(Z, *gen_params)
+X = T.tensor4()
+cost = T.mean(T.sqr(gX - X))
 
 if 'vc_num' in locals():
     from load import visual_concepts
@@ -38,21 +40,29 @@ if 'vc_num' in locals():
     vc_idx = np.where(labels == vc_num)[0]
     vc_idx = vc_idx[:196]
 
-    feat_l2_idx = tr_stream.dataset.provides_sources.index('feat_l2')
-    sample_zmb = data[feat_l2_idx][vc_idx,:]
+    if 'orig' in desc:
+        zmb_idx = tr_stream.dataset.provides_sources.index('feat_orig')
+    else:
+        zmb_idx = tr_stream.dataset.provides_sources.index('feat_l2')
+    sample_zmb = data[zmb_idx][vc_idx,:]
 
     patches = data[patches_idx][vc_idx,:]
     patches = transform(patches, 64)
-    print patches.shape
     color_grid_vis(inverse_transform(patches, nc=3, npx=64), (14, 14), './patches.png')
 else:
     sample_zmb = floatX(np_rng.uniform(-1., 1., size=(196, 100)))
 
 print 'COMPILING...'
 _gen = theano.function([Z], gX)
+recon = theano.function([gX,X], cost)
 print 'Done!'
 
 samples = np.asarray(_gen(sample_zmb))
+
+if 'patches' in locals():
+    recon_cost = recon(samples, patches)
+    print "Reconstruction Error: %3f" % (float(recon_cost))
+
 save_file = dcgan_root + 'samples/%s/vc_%s.png'%(desc, str(vc_num))
-print samples.shape
 color_grid_vis(inverse_transform(samples, nc=3, npx=64), (14, 14), save_file)
+print "Saved samples to %s" % (save_file)
