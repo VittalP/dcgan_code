@@ -45,7 +45,7 @@ nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
-desc = 'vcgan_l2_multi_recon'
+desc = 'vcgan_orig_multi2_recon'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None)
 
@@ -112,11 +112,12 @@ if latest_epoch == -1:
     dw4 = difn((ndf*8, ndf*4, 5, 5), 'dw4')
     dg4 = gain_ifn((ndf*8), 'dg4')
     db4 = bias_ifn((ndf*8), 'db4')
-    dwy = difn((ndf*8*4*4, 1), 'dwy')
-    dwmy = difn((ndf*8*4*4, nvc), 'dwmy')
+    # dwy = difn((ndf*8*4*4, 1), 'dwy')
+    dwmy = difn((ndf*8*4*4, nvc*2), 'dwmy')
+    bm = bias_ifn((nvc*2), 'bm')
 
     gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
-    discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy, dwmy]
+    discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwmy, bm]
     iter_array = range(niter)
 else:
     print "Initializing weights from %d epoch network" % (latest_epoch)
@@ -130,26 +131,26 @@ Y = T.matrix()
 
 gX = models.gen(Z, *gen_params)
 
-p_real, p_real_multi = models.discrim(X, *discrim_params)
-p_gen, p_gen_multi = models.discrim(gX, *discrim_params)
+p_real_multi = models.discrim(X, *discrim_params)
+p_gen_multi = models.discrim(gX, *discrim_params)
 
 bce = T.nnet.binary_crossentropy
 cce = T.nnet.categorical_crossentropy
 
-d_cost_real = bce(p_real, T.ones(p_real.shape)).mean() # bce is defined in models.py
-d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
+# d_cost_real = bce(p_real, T.ones(p_real.shape)).mean() # bce is defined in models.py
+# d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
 
-d_cost_multi_real = cce(p_real_multi, Y).mean()
-d_cost_multi_gen = cce(p_gen_multi, Y).mean()
+d_cost_multi_real = cce(p_real_multi, T.concatenate([Y, T.zeros((p_real_multi.shape[0], nvc))], axis=1)).mean()
+d_cost_multi_gen = cce(p_gen_multi, T.concatenate([T.zeros((p_gen_multi.shape[0], nvc)), Y], axis=1)).mean()
 
-g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
-g_cost_multi_d = cce(p_gen_multi, Y).mean()
+# g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
+g_cost_multi_d = cce(p_gen_multi, T.concatenate([Y, T.zeros((p_real_multi.shape[0], nvc))], axis=1)).mean()
 g_cost_recon = T.mean(T.sqr(gX - X))
 
-d_cost = d_cost_real + d_cost_gen + d_cost_multi_real + d_cost_multi_gen
-g_cost = g_cost_d + g_cost_multi_d + g_cost_recon
+d_cost = d_cost_multi_real + d_cost_multi_gen
+g_cost = g_cost_multi_d + g_cost_recon
 
-cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
+cost = [g_cost, d_cost]
 
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
