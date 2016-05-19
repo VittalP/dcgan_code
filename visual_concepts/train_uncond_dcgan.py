@@ -274,7 +274,7 @@ for epoch in iter_array:
     # va_nnd_10k = nnd_score(gX[:10000], vaX, metric='euclidean')
     # va_nnd_100k = nnd_score(gX[:100000], vaX, metric='euclidean')
     # log = [n_epochs, n_updates, n_examples, time()-t, va_nnd_1k, va_nnd_10k, va_nnd_100k, g_cost, d_cost]
-    # log = [n_epochs, n_updates, n_examples, time() - t, g_cost, d_cost]
+    log = [n_epochs, n_updates, n_examples, time() - t, g_cost, d_cost]
     # # print '%.0f %.2f %.2f %.2f %.4f %.4f'%(epoch, va_nnd_1k, va_nnd_10k, va_nnd_100k, g_cost, d_cost)
     print '%.0f %.4f %.4f' % (epoch, g_cost, d_cost)
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
