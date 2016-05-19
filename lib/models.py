@@ -1,13 +1,15 @@
 from lib import activations
+from lib.img_utils import inverse_transform
 from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, l2normalize
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv
 
-import config # imports caffe_dir
+from lib.config import caffe_dir
 import sys
 import os
-# sys.path.append(caffe_dir + 'python')
-# import caffe
+import numpy as np
+sys.path.append(caffe_dir + 'python')
+import caffe
 
 relu = activations.Rectify()
 sigmoid = activations.Sigmoid()
@@ -37,30 +39,34 @@ def discrim(X, w, w2, g2, b2, w3, g3, b3, w4, g4, b4, wy, wmy):
     multi_y = softmax(T.dot(h4, wmy))
     return y, multi_y
 
-def vgg16(imb):
+def vgg16():
     model_def = '../models/vgg16-deploy-conv.prototxt'
     model_weights = '../models/vgg16.caffemodel'
     if not os.path.isfile(model_weights):
         print "Download VGG-16 model and place in dcgan_code/models directory."
         print "Exiting..."
         sys.exit()
+    caffe.set_device(0)  # if we have multiple GPUs, pick the first one
+    caffe.set_mode_gpu()
+    net = caffe.Net(model_def, model_weights, caffe.TEST)
+    return net
 
+def getVGGFeat(net, imb):
     # Data preprocessing for inputting to VGG16
     # Convert back to RGB values [0,255]
     if np.min(imb) < 0:
-        imb = inverse_transform(imb, 3, 64, 64)*255
+        imb = inverse_transform(imb, 3, 64)*255
 
     # VGG needs 100x100 patches
     if imb.shape[2] != 100:
         import scipy
-        vgg_imb = np.zeros((imb.shape[0], 100, 100, 3))
+        vgg_imb = np.zeros((imb.shape[0], 3, 100, 100))
         for ii in range(imb.shape[0]):
             img = scipy.misc.imresize(np.squeeze(imb[ii,::-1]), (100,100,3))
             img = img - np.array((104.00698793,116.66876762,122.67891434))
             vgg_imb[ii,...] = img.transpose((2,0,1))
 
-    net = caffe.Net(model_def, model_weights, caffe.TEST)
-    net_conv.blobs['data'].data[...] = vgg_imb
+    net.blobs['data'].data[...] = vgg_imb
     out = net.forward()
     pool4_feat = np.squeeze(out['pool4'])
     return pool4_feat
