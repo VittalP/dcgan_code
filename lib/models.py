@@ -36,16 +36,3 @@ def discrim(X, w, w2, g2, b2, w3, g3, b3, w4, g4, b4, wmy, bm):
     # y = sigmoid(T.dot(h4, wy))
     multi_y = softmax(T.dot(h4, wmy) + bm)
     return multi_y
-
-# def vgg16():
-#     model_def = '../models/vgg16-deploy-conv.prototxt'
-#     model_weights = '../models/vgg16.caffemodel'
-#     if not os.path.isfile(model_weights):
-#         print "Download VGG-16 model and place in dcgan_code/models directory."
-#         print "Exiting..."
-#         sys.exit()
-#
-#     net = caffe.Net(model_def, model_weights, caffe.TEST)
-#     net_conv.blobs['data'].data[...] = caffe.io.load_image('../models/vc.jpg')
-#     out = net.forward()
-#     pool4_feat = out['pool4']
