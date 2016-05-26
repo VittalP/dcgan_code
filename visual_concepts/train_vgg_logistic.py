@@ -23,9 +23,9 @@ npx = 64          # # of pixels width/height of images
 nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
-lr = 0.2       # initial learning rate for adam
+lr = 1.0       # initial learning rate for adam
 
-desc = 'l2'
+desc = 'orig'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None)
 
@@ -74,6 +74,11 @@ train_model = theano.function(
     updates=updates
 )
 
+# compile a predictor function
+predict_model = theano.function(
+    inputs=[classifier.input],
+    outputs=classifier.y_pred)
+
 n_updates = 0
 n_check = 0
 n_epochs = 0
@@ -81,6 +86,9 @@ n_updates = 0
 t = time()
 
 for epoch in range(10):
+    train_cost = 0
+    numBatches = 0
+    numCorrect = 0
     for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
         if data[patches_idx].shape[0] != nbatch:
             continue;
@@ -94,9 +102,17 @@ for epoch in range(10):
         #     label_stack = np.vstack((label_stack, hot_vec))
         #
         # ymb = label_stack
+        print np.unique(labels).shape
         x_batch = floatX(data[zmb_idx])
         y_batch = labels
         batch_cost = train_model(x_batch, y_batch)
+        train_cost = train_cost + batch_cost
+
+        y_pred = predict_model(x_batch)
+        numCorrect += np.equal(y_pred, labels).sum()
+
+        numBatches += 1
         n_updates += 1
 
+    print('epoch: %d, train_cost: %3f, train_accuracy: %3f') % (epoch, train_cost/numBatches, numCorrect*100/(numBatches*nbatch))
     n_epochs += 1
