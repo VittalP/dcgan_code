@@ -86,33 +86,31 @@ n_updates = 0
 t = time()
 
 for epoch in range(10):
-    train_cost = 0
+    for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
+        if data[patches_idx].shape[0] != nbatch:
+            continue
+        labels = data[labels_idx]-1
+        labels = labels.reshape((labels.shape[0],))
+        x_batch = floatX(data[zmb_idx])
+        y_batch = labels
+        batch_cost = train_model(x_batch, y_batch)
+
+        n_updates += 1
+        flag = True
+
+    print "Testing..."
     numBatches = 0
     numCorrect = 0
     for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
         if data[patches_idx].shape[0] != nbatch:
-            continue;
-
-        labels = data[labels_idx]-1
+            continue
+        labels = data[labels_idx] - 1
         labels = labels.reshape((labels.shape[0],))
-        # label_stack = np.array([], dtype=np.uint8).reshape(0,nvc)
-        # for label in labels:
-        #     hot_vec = np.zeros((1,nvc), dtype=np.uint8)
-        #     hot_vec[0,label-1] = 1 # labels are 1-nvc
-        #     label_stack = np.vstack((label_stack, hot_vec))
-        #
-        # ymb = label_stack
-        print np.unique(labels).shape
         x_batch = floatX(data[zmb_idx])
         y_batch = labels
-        batch_cost = train_model(x_batch, y_batch)
-        train_cost = train_cost + batch_cost
-
         y_pred = predict_model(x_batch)
         numCorrect += np.equal(y_pred, labels).sum()
-
         numBatches += 1
-        n_updates += 1
 
-    print('epoch: %d, train_cost: %3f, train_accuracy: %3f') % (epoch, train_cost/numBatches, numCorrect*100/(numBatches*nbatch))
+    print('epoch: %d, train_accuracy: %3f') % (epoch, numCorrect*100/(numBatches*nbatch))
     n_epochs += 1
