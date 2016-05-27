@@ -2,6 +2,7 @@ import sys
 sys.path.append('..')
 
 import os
+import json
 from time import time
 import numpy as np
 from tqdm import tqdm
@@ -23,9 +24,10 @@ npx = 64          # # of pixels width/height of images
 nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
-lr = 1.0       # initial learning rate for adam
-
-desc = 'orig'
+# lr = 1.0       # initial learning rate for adam
+lr = float(sys.argv[2])
+base_name = sys.argv[1]
+desc = base_name + '_' + str(lr)
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None)
 
@@ -79,6 +81,12 @@ predict_model = theano.function(
     inputs=[classifier.input],
     outputs=classifier.y_pred)
 
+f_log = open('logs/%s.ndjson'%desc, 'wb')
+log_fields = [
+    'n_epochs',
+    'train_accuracy'
+]
+
 n_updates = 0
 n_check = 0
 n_epochs = 0
@@ -112,5 +120,8 @@ for epoch in range(10):
         numCorrect += np.equal(y_pred, labels).sum()
         numBatches += 1
 
-    print('epoch: %d, train_accuracy: %3f') % (epoch, numCorrect*100/(numBatches*nbatch))
+    print('epoch: %d, train_accuracy: %5f') % (epoch, numCorrect*100/(numBatches*nbatch))
     n_epochs += 1
+    log = [epoch, numCorrect*100.0/(numBatches*nbatch)]
+    f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
+    f_log.flush()
