@@ -44,8 +44,8 @@ ndf = 128         # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
-lr = 0.2       # initial learning rate for adam
-desc = 'vcgan_l2_multi_recon_vgg'
+lr = 0.002       # initial learning rate for adam
+desc = 'vgg_recon'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None)
 
@@ -79,35 +79,28 @@ if not os.path.exists(model_dir):
 if not os.path.exists(samples_dir):
     os.makedirs(samples_dir)
 
-latest_epoch = utils.getLatestModelNum(model_dir)
+print "Initializing weights from scratch"
+gifn = inits.Normal(scale=0.02)
+difn = inits.Normal(scale=0.02)
+gain_ifn = inits.Normal(loc=1., scale=0.02)
+bias_ifn = inits.Constant(c=0.)
 
-if latest_epoch == -1:
-    print "Initializing weights from scratch"
-    gifn = inits.Normal(scale=0.02)
-    difn = inits.Normal(scale=0.02)
-    gain_ifn = inits.Normal(loc=1., scale=0.02)
-    bias_ifn = inits.Constant(c=0.)
+gw  = gifn((nz, ngf*8*4*4), 'gw')
+gg = gain_ifn((ngf*8*4*4), 'gg')
+gb = bias_ifn((ngf*8*4*4), 'gb')
+gw2 = gifn((ngf*8, ngf*4, 5, 5), 'gw2')
+gg2 = gain_ifn((ngf*4), 'gg2')
+gb2 = bias_ifn((ngf*4), 'gb2')
+gw3 = gifn((ngf*4, ngf*2, 5, 5), 'gw3')
+gg3 = gain_ifn((ngf*2), 'gg3')
+gb3 = bias_ifn((ngf*2), 'gb3')
+gw4 = gifn((ngf*2, ngf, 5, 5), 'gw4')
+gg4 = gain_ifn((ngf), 'gg4')
+gb4 = bias_ifn((ngf), 'gb4')
+gwx = gifn((ngf, nc, 5, 5), 'gwx')
 
-    gw  = gifn((nz, ngf*8*4*4), 'gw')
-    gg = gain_ifn((ngf*8*4*4), 'gg')
-    gb = bias_ifn((ngf*8*4*4), 'gb')
-    gw2 = gifn((ngf*8, ngf*4, 5, 5), 'gw2')
-    gg2 = gain_ifn((ngf*4), 'gg2')
-    gb2 = bias_ifn((ngf*4), 'gb2')
-    gw3 = gifn((ngf*4, ngf*2, 5, 5), 'gw3')
-    gg3 = gain_ifn((ngf*2), 'gg3')
-    gb3 = bias_ifn((ngf*2), 'gb3')
-    gw4 = gifn((ngf*2, ngf, 5, 5), 'gw4')
-    gg4 = gain_ifn((ngf), 'gg4')
-    gb4 = bias_ifn((ngf), 'gb4')
-    gwx = gifn((ngf, nc, 5, 5), 'gwx')
-
-    gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
-    iter_array = range(niter)
-else:
-    print "Initializing weights from %d epoch network" % (latest_epoch)
-    gen_params = [sharedX(element) for element in joblib.load(model_dir + "/%s"%(str(latest_epoch)) + "_gen_params.jl")]
-    iter_array = range(latest_epoch,niter)
+gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
+iter_array = range(niter)
 
 X = T.tensor4()
 Z = T.matrix()
@@ -116,13 +109,9 @@ gF = T.matrix()
 
 gX = models.gen(Z, *gen_params)
 
-def mse(a,b):
-    return T.mean(T.sum(T.sqr(a-b), axis=0))
+g_cost = T.mean(T.sum(T.pow(F-gF, 2)))
 
-def cos(a,b):
-    
-
-
+print('Here')
 lrt = sharedX(lr)
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 g_updates = g_updater(gen_params, g_cost)
@@ -163,8 +152,7 @@ log_fields = [
     '1k_va_nnd',
     '10k_va_nnd',
     '100k_va_nnd',
-    'g_cost',
-    'd_cost',
+    'g_cost'
 ]
 
 vaX = vaX.reshape(len(vaX), -1)
@@ -192,9 +180,9 @@ for epoch in iter_array:
         imb_g = inverse_transform(samples, nc, npx)
 
         realF = models.getVGGFeat(vgg16_net, imb)
-        realF = realF / np.linalg.norm(realF)
+        # realF = realF / np.linalg.norm(realF)
         genF = models.getVGGFeat(vgg16_net, imb_g)
-        genF = genF / np.linalg.norm(genF)
+        # genF = genF / np.linalg.norm(genF)
 
         cost = _train_g(imb, zmb, realF, genF)
         n_updates += 1
