@@ -63,6 +63,11 @@ def keras2numpy(weights_path):
         print("Exiting...")
         sys.exit(0)
 
+    weight_dir = 'models/vgg16/'
+    save_path = weight_dir + "vgg16.jl"
+    if os.path.exists(save_path):
+        return save_path
+
     print "Collecting VGG_16 weights from keras model..."
     model = VGG_16_Keras(weights_path)
     print "...done!"
@@ -78,15 +83,15 @@ def keras2numpy(weights_path):
             break
         weights = weights + [w for w in layer.get_weights()]
         count += 1
-    print len(weights)
-    print len(relevant_layers)
+
     assert len(weights) == len(relevant_layers)
-    weight_dir = 'models/vgg16/'
+
     if not os.path.exists(weight_dir):
         os.makedirs(weight_dir)
-    print "Saving numpy version of vgg16 weights at " + weight_dir + "vgg16.jl"
-    joblib.dump(weights, weight_dir + 'vgg16.jl')
+    print "Saving numpy version of vgg16 weights at " + savePath
+    joblib.dump(weights, save_path)
     print "Done saving"
+    return save_path
 
 if __name__ == "__main__":
 
