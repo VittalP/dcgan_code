@@ -67,7 +67,7 @@ def keras2numpy(weights_path):
     model = VGG_16_Keras(weights_path)
     print "...done!"
 
-    relevant_layers = ['conv1_1_w', 'conv1_1_b', 'conv1_2_w', 'conv1_2_b', 'conv1_3_w', 'conv1_3_b', 'conv2_1_w', 'conv2_1_b', 'conv2_2_w', 'conv2_2_b', 'conv2_3_w', 'conv2_3_b', 'conv3_1_w', 'conv3_1_b', 'conv3_2_w', 'conv3_2_b', 'conv3_3_w', 'conv3_3_b', 'conv4_1_w', 'conv4_1_b', 'conv4_2_w', 'conv4_2_b', 'conv4_3_w', 'conv4_3_b']
+    relevant_layers = ['conv1_1_w', 'conv1_1_b', 'conv1_2_w', 'conv1_2_b', 'conv2_1_w', 'conv2_1_b', 'conv2_2_w', 'conv2_2_b', 'conv3_1_w', 'conv3_1_b', 'conv3_2_w', 'conv3_2_b', 'conv3_3_w', 'conv3_3_b', 'conv4_1_w', 'conv4_1_b', 'conv4_2_w', 'conv4_2_b', 'conv4_3_w', 'conv4_3_b']
     num_layers = len(relevant_layers)
     count = 0
     weights = []
