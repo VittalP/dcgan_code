@@ -80,10 +80,9 @@ if not os.path.exists(samples_dir):
     os.makedirs(samples_dir)
 
 print "Initializing VGG weights"
-vgg_keras_weights = 'models/vgg16_weights.h5'
+vgg_keras_weights = 'models/vgg16/vgg16_weights.h5'
 save_path = vgg.keras2numpy(vgg_keras_weights)
 vgg_params = [sharedX(element) for element in joblib.load(save_path)]
-
 
 print "Initializing weights from scratch"
 gifn = inits.Normal(scale=0.02)
