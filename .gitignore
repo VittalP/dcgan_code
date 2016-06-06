@@ -1,5 +1,6 @@
 # Files
 *.json
+*.pyc
 
 # Directories
 /cache
