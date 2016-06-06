@@ -88,7 +88,7 @@ def keras2numpy(weights_path):
 
     if not os.path.exists(weight_dir):
         os.makedirs(weight_dir)
-    print "Saving numpy version of vgg16 weights at " + savePath
+    print "Saving numpy version of vgg16 weights at " + save_path
     joblib.dump(weights, save_path)
     print "Done saving"
     return save_path
