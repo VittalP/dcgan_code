@@ -79,11 +79,6 @@ if not os.path.exists(model_dir):
 if not os.path.exists(samples_dir):
     os.makedirs(samples_dir)
 
-print "Initializing VGG weights"
-vgg_keras_weights = 'models/vgg16_weights.h5'
-save_path = vgg.keras2numpy(vgg_keras_weights)
-vgg_params = [sharedX(element) for element in joblib.load(save_path)]
-
 print "Initializing weights from scratch"
 gifn = inits.Normal(scale=0.02)
 difn = inits.Normal(scale=0.02)
@@ -133,20 +128,6 @@ vaX_vis = inverse_transform(vaX[vis_idxs], nc, npx)
 color_grid_vis(vaX_vis, (14, 14), 'samples/%s_etl_test.png'%desc)
 
 sample_zmb = floatX(data[zmb_idx][vis_idxs,:])
-
-def gen_samples(n, nbatch=128):
-    samples = []
-    n_gen = 0
-    for i in range(n/nbatch):
-        zmb = floatX(np_rng.uniform(-1., 1., size=(nbatch, nz)))
-        xmb = _gen(zmb)
-        samples.append(xmb)
-        n_gen += len(xmb)
-    n_left = n-n_gen
-    zmb = floatX(np_rng.uniform(-1., 1., size=(n_left, nz)))
-    xmb = _gen(zmb)
-    samples.append(xmb)
-    return np.concatenate(samples, axis=0)
 
 f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
