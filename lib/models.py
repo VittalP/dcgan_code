@@ -40,10 +40,10 @@ def discrim(X, w, w2, g2, b2, w3, g3, b3, w4, g4, b4, wy, wmy):
     return y, multi_y
 
 def vggPool4(X, conv1_1_w, conv1_1_b, conv1_2_w, conv1_2_b, conv2_1_w, conv2_1_b, conv2_2_w, conv2_2_b, conv3_1_w, conv3_1_b, conv3_2_w, conv3_2_b, conv3_3_w, conv3_3_b, conv4_1_w, conv4_1_b, conv4_2_w, conv4_2_b, conv4_3_w, conv4_3_b):
-    feat1 = T.signal.pool.pool_2d(lrelu(dnn_conv(lrelu(dnn_conv(X, conv1_1_w, b=conv1_1_b)), conv1_2_w, b=conv1_2_b)), mode='max')
-    feat2 = T.signal.pool.pool_2d(lrelu(dnn_conv(lrelu(dnn_conv(feat1, conv2_1_w, b=conv2_1_b)), conv2_2_w, b=conv2_2_b)), mode='max')
-    feat3 = T.signal.pool.pool_2d(lrelu(dnn_conv(lrelu(dnn_conv(lrelu(dnn_conv(feat1, conv3_1_w, b=conv3_1_b)), conv3_2_w, b=conv3_2_b)), conv3_3_w, b=conv3_3_b)), mode='max')
-    feat4 = T.signal.pool.pool_2d(lrelu(dnn_conv(lrelu(dnn_conv(lrelu(dnn_conv(feat1, conv4_1_w, b=conv4_1_b)), conv4_2_w, b=conv4_2_b)), conv4_3_w, b=conv4_3_b)), mode='max')
+    feat1 = T.signal.pool.pool_2d(lrelu(dnn_conv(lrelu(dnn_conv(X, conv1_1_w)), conv1_2_w)), (2,2), mode='max')
+    feat2 = T.signal.pool.pool_2d(lrelu(dnn_conv(lrelu(dnn_conv(feat1, conv2_1_w)), conv2_2_w)), (2,2), mode='max')
+    feat4 = T.signal.pool.pool_2d(lrelu(dnn_conv(lrelu(dnn_conv(lrelu(dnn_conv(feat1, conv4_1_w)), conv4_2_w)), conv4_3_w)), (2,2), mode='max')
+    feat3 = T.signal.pool.pool_2d(lrelu(dnn_conv(lrelu(dnn_conv(lrelu(dnn_conv(feat1, conv3_1_w)), conv3_2_w)), conv3_3_w)), (2,2), mode='max')
     return feat4
 
 def vgg16():
