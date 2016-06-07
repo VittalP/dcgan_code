@@ -96,7 +96,6 @@ def deconv(X, w, subsample=(1, 1), border_mode=(0, 0), conv_mode='conv'):
     return d_img
 
 def conv_with_bias(X, W, b):
-    nc = W.shape[1]
-    nb = W.shape[0]
-    Y = dnn_conv(X, W) + T.reshape(b, (1, nc, 1, 1))
+    nf = W.shape[0]
+    Y = dnn_conv(X, W) + T.reshape(b, (1,nf,1,1))
     return Y
