@@ -18,13 +18,14 @@ from lib import updates
 from lib import inits
 from lib.vis import color_grid_vis
 from lib.rng import py_rng, np_rng
-from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, l2normalize
+from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, l2normalize, conv_with_bias
 from lib.metrics import nnc_score, nnd_score
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import OneHot, shuffle, iter_data, center_crop, patch
 from lib.config import data_dir
 import lib.utils as utils
 from lib import models
+from lib import vgg
 
 from lib.img_utils import inverse_transform, transform
 
