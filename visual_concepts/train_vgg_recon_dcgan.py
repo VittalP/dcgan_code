@@ -60,15 +60,8 @@ if "orig" in desc:
 else:
     zmb_idx = feat_l2_idx
 
-tr_handle = tr_data.open()
-data = tr_data.get_data(tr_handle, slice(0, 10000))
-vaX = data[patches_idx]
-vaX = transform(vaX, npx)
-
-data = tr_data.get_data(tr_handle, slice(0, tr_data.num_examples))
-nvc = np.max(data[labels_idx]) # Number of visual concepts
-assert nvc == 176 # Debugging code. Remove it later
-nz = data[feat_l2_idx].shape[1]  # Length of the population encoding vector
+nvc = 176 # Visual concepts
+nz = 512
 ntrain = tr_data.num_examples  # # of examples to train on
 
 model_dir = 'models/%s'%desc
@@ -108,16 +101,17 @@ gwx = gifn((ngf, nc, 5, 5), 'gwx')
 gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
 iter_array = range(niter)
 
-X = T.tensor4()
+# X = T.tensor4()
 Z = T.matrix()
 F = T.matrix()
-gF = T.matrix()
 
 gX = models.gen(Z, *gen_params)
+invGX = inverse_transform(gX, 3, 64)
+invGX_UP = T.nnet.abstract_conv.bilinear_upsampling(invGX, ratio=2, batch_size=1, num_input_channels=3)
+gF = models.vggPool4(invGX_UP, *vgg_params)
 
 g_cost = T.mean(T.sum(T.pow(F-gF, 2)))
 
-print('Here')
 lrt = sharedX(lr)
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 g_updates = g_updater(gen_params, g_cost)
@@ -125,10 +119,9 @@ updates = g_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([X, Z, F, gF], g_cost, updates=g_updates)
-_gen = theano.function([Z], gX)
+_train_g = theano.function([Z, F], g_cost, updates=g_updates)
 print '%.2f seconds to compile theano functions'%(time()-t)
-
+sys.exit()
 vis_idxs = py_rng.sample(np.arange(len(vaX)), nvis)
 vaX_vis = inverse_transform(vaX[vis_idxs], nc, npx)
 color_grid_vis(vaX_vis, (14, 14), 'samples/%s_etl_test.png'%desc)
