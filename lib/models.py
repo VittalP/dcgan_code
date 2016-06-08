@@ -40,10 +40,10 @@ def discrim(X, w, w2, g2, b2, w3, g3, b3, w4, g4, b4, wy, wmy):
     return y, multi_y
 
 def vggPool4(X, conv1_1_w, conv1_1_b, conv1_2_w, conv1_2_b, conv2_1_w, conv2_1_b, conv2_2_w, conv2_2_b, conv3_1_w, conv3_1_b, conv3_2_w, conv3_2_b, conv3_3_w, conv3_3_b, conv4_1_w, conv4_1_b, conv4_2_w, conv4_2_b, conv4_3_w, conv4_3_b):
-    feat1 = T.signal.pool.pool_2d(lrelu(conv_with_bias(lrelu(conv_with_bias(X, conv1_1_w, conv1_1_b)), conv1_2_w, conv1_2_b)), ds=(2,2), ignore_border=True, mode='max')
-    feat2 = T.signal.pool.pool_2d(lrelu(conv_with_bias(lrelu(conv_with_bias(feat1, conv2_1_w, conv2_1_b)), conv2_2_w, conv2_2_b)), ds=(2,2), ignore_border=True, mode='max')
-    feat3 = T.signal.pool.pool_2d(lrelu(conv_with_bias(lrelu(conv_with_bias(lrelu(conv_with_bias(feat2, conv3_1_w, conv3_1_b)), conv3_2_w, conv3_2_b)), conv3_3_w, conv3_3_b)), ds=(2,2), ignore_border=True, mode='max')
-    feat4 = T.signal.pool.pool_2d(lrelu(conv_with_bias(lrelu(conv_with_bias(lrelu(conv_with_bias(feat3, conv4_1_w, conv4_1_b)), conv4_2_w, conv4_2_b)), conv4_3_w, conv4_3_b)), ds=(2,2), ignore_border=True, mode='max')
+    feat1 = T.signal.pool.pool_2d(relu(conv_with_bias(relu(conv_with_bias(X, conv1_1_w, conv1_1_b)), conv1_2_w, conv1_2_b)), ds=(2,2), ignore_border=True, mode='max')
+    feat2 = T.signal.pool.pool_2d(relu(conv_with_bias(relu(conv_with_bias(feat1, conv2_1_w, conv2_1_b)), conv2_2_w, conv2_2_b)), ds=(2,2), ignore_border=True, mode='max')
+    feat3 = T.signal.pool.pool_2d(relu(conv_with_bias(relu(conv_with_bias(relu(conv_with_bias(feat2, conv3_1_w, conv3_1_b)), conv3_2_w, conv3_2_b)), conv3_3_w, conv3_3_b)), ds=(2,2), ignore_border=True, mode='max')
+    feat4 = T.signal.pool.pool_2d(relu(conv_with_bias(relu(conv_with_bias(relu(conv_with_bias(feat3, conv4_1_w, conv4_1_b)), conv4_2_w, conv4_2_b)), conv4_3_w, conv4_3_b)), ds=(2,2), ignore_border=True, mode='max')
     return feat4
 
 def vgg16():
@@ -64,14 +64,16 @@ def getVGGFeat(net, imb):
     if np.min(imb) < 0:
         imb = inverse_transform(imb, 3, 64)*255
 
+    vgg_imb = np.zeros((imb.shape[0], 100, 100, 3))
     # VGG needs 100x100 patches
     if imb.shape[2] != 100:
         import scipy
-        vgg_imb = np.zeros((imb.shape[0], 3, 100, 100))
         for ii in range(imb.shape[0]):
-            img = scipy.misc.imresize(np.squeeze(imb[ii,::-1]), (100,100,3))
-            img = img - np.array((104.00698793,116.66876762,122.67891434))
-            vgg_imb[ii,...] = img.transpose((2,0,1))
+            vgg_img[ii,...] = scipy.misc.imresize(np.squeeze(imb[ii,::-1]), (100,100,3))
+    else:
+        vgg_imb = imb
+    vgg_imb = vgg_imb - np.array((104.00698793,116.66876762,122.67891434))
+    vgg_imb = vgg_imb.transpose((0,3,1,2))
 
     net.blobs['data'].data[...] = vgg_imb
     out = net.forward()
