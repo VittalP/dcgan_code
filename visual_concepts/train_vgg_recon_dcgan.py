@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 from sklearn.externals import joblib
-
+import scipy.misc
 import theano
 import theano.sandbox.cuda
 import theano.tensor as T
@@ -101,7 +101,7 @@ gwx = gifn((ngf, nc, 5, 5), 'gwx')
 gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
 iter_array = range(niter)
 
-# X = T.tensor4()
+X = T.tensor4()
 Z = T.matrix()
 F = T.matrix()
 
@@ -109,6 +109,7 @@ gX = models.gen(Z, *gen_params)
 invGX = inverse_transform(gX, 3, 64)
 invGX_UP = T.nnet.abstract_conv.bilinear_upsampling(invGX, ratio=2, batch_size=1, num_input_channels=3)
 gF = models.vggPool4(invGX_UP, *vgg_params)
+F = models.vggPool4(X, *vgg_params)
 
 g_cost = T.mean(T.sum(T.pow(F-gF, 2)))
 
@@ -120,13 +121,15 @@ updates = g_updates
 print 'COMPILING'
 t = time()
 _train_g = theano.function([Z, F], g_cost, updates=g_updates)
+_vgg = theano.function([X], F)
 print '%.2f seconds to compile theano functions'%(time()-t)
-sys.exit()
-vis_idxs = py_rng.sample(np.arange(len(vaX)), nvis)
-vaX_vis = inverse_transform(vaX[vis_idxs], nc, npx)
-color_grid_vis(vaX_vis, (14, 14), 'samples/%s_etl_test.png'%desc)
 
-sample_zmb = floatX(data[zmb_idx][vis_idxs,:])
+# I = np.zeros((1,3,100,100))
+# FF = _vgg(floatX(I))
+# sys.exit()
+# vis_idxs = py_rng.sample(np.arange(len(vaX)), nvis)
+# vaX_vis = inverse_transform(vaX[vis_idxs], nc, npx)
+# color_grid_vis(vaX_vis, (14, 14), 'samples/%s_etl_test.png'%desc)
 
 f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
@@ -140,7 +143,7 @@ log_fields = [
     'g_cost'
 ]
 
-vaX = vaX.reshape(len(vaX), -1)
+# vaX = vaX.reshape(len(vaX), -1)
 
 print desc.upper()
 n_updates = 0
@@ -150,29 +153,41 @@ n_updates = 0
 n_examples = 0
 t = time()
 
-vgg16_net = models.vgg16()
-
+# vgg16_net = models.vgg16()
+print "starting..."
 for epoch in iter_array:
     for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
         if data[patches_idx].shape[0] != nbatch:
             continue;
         imb = data[patches_idx]
-        imb = transform(imb, npx)
+        imb = imb - np.array((104.00698793,116.66876762,122.67891434))
+        imb = imb[0,...].transpose((2,0,1))
+        imb = imb.reshape((1,imb.shape[0], imb.shape[1], imb.shape[2]))
+        print type(imb)
+        print imb.shape
+        zz = data[zmb_idx]
+        zz = zz[0,...]
+        ff = np.asarray(_vgg(floatX(imb)))
+        print "Done"
+        sys.exit()
 
-        zmb = floatX(data[zmb_idx])
-
-        samples = np.asarray(_gen(zmb))
-        imb_g = inverse_transform(samples, nc, npx)
-
-        realF = models.getVGGFeat(vgg16_net, imb)
-        # realF = realF / np.linalg.norm(realF)
-        genF = models.getVGGFeat(vgg16_net, imb_g)
-        # genF = genF / np.linalg.norm(genF)
-
-        cost = _train_g(imb, zmb, realF, genF)
-        n_updates += 1
-        n_examples += len(imb)
-        g_cost = float(cost[0])
+        # imb = data[patches_idx]
+        # imb = transform(imb, npx)
+        #
+        # zmb = floatX(data[zmb_idx])
+        #
+        # samples = np.asarray(_gen(zmb))
+        # imb_g = inverse_transform(samples, nc, npx)
+        #
+        # realF = models.getVGGFeat(vgg16_net, imb)
+        # # realF = realF / np.linalg.norm(realF)
+        # genF = models.getVGGFeat(vgg16_net, imb_g)
+        # # genF = genF / np.linalg.norm(genF)
+        #
+        # cost = _train_g(imb, zmb, realF, genF)
+        # n_updates += 1
+        # n_examples += len(imb)
+        # g_cost = float(cost[0])
 
     print '%.0f %.4f %.4f' % (epoch, g_cost)
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
