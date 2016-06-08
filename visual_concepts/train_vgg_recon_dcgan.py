@@ -46,6 +46,7 @@ nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.002       # initial learning rate for adam
+vggp4x = 100
 desc = 'vgg_recon'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None)
@@ -103,15 +104,14 @@ iter_array = range(niter)
 
 X = T.tensor4()
 Z = T.matrix()
-F = T.matrix()
 
 gX = models.gen(Z, *gen_params)
 invGX = inverse_transform(gX, 3, 64)
-invGX_UP = T.nnet.abstract_conv.bilinear_upsampling(invGX, ratio=2, batch_size=1, num_input_channels=3)
-gF = models.vggPool4(invGX_UP, *vgg_params)
-F = models.vggPool4(X, *vgg_params)
+invGX_UP = T.nnet.abstract_conv.bilinear_upsampling(invGX, ratio=2, batch_size=nbatch, num_input_channels=3)
+invGX_center = theano.scan(center_crop(x, vggp4x), sequences=invGX_UP)
+gF = models.vggPool4(invGX_center, *vgg_params)
 
-g_cost = T.mean(T.sum(T.pow(F-gF, 2)))
+g_cost = T.mean(T.sum(T.pow(Z-gF, 2)))
 
 lrt = sharedX(lr)
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
@@ -120,16 +120,8 @@ updates = g_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([Z, F], g_cost, updates=g_updates)
-_vgg = theano.function([X], F)
+_train_g = theano.function([Z], g_cost, updates=g_updates)
 print '%.2f seconds to compile theano functions'%(time()-t)
-
-# I = np.zeros((1,3,100,100))
-# FF = _vgg(floatX(I))
-# sys.exit()
-# vis_idxs = py_rng.sample(np.arange(len(vaX)), nvis)
-# vaX_vis = inverse_transform(vaX[vis_idxs], nc, npx)
-# color_grid_vis(vaX_vis, (14, 14), 'samples/%s_etl_test.png'%desc)
 
 f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
@@ -143,8 +135,6 @@ log_fields = [
     'g_cost'
 ]
 
-# vaX = vaX.reshape(len(vaX), -1)
-
 print desc.upper()
 n_updates = 0
 n_check = 0
@@ -153,23 +143,14 @@ n_updates = 0
 n_examples = 0
 t = time()
 
-# vgg16_net = models.vgg16()
-print "starting..."
 for epoch in iter_array:
     for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
         if data[patches_idx].shape[0] != nbatch:
             continue;
-        imb = data[patches_idx]
-        imb = imb - np.array((104.00698793,116.66876762,122.67891434))
-        imb = imb[0,...].transpose((2,0,1))
-        imb = imb.reshape((1,imb.shape[0], imb.shape[1], imb.shape[2]))
-        print type(imb)
-        print imb.shape
-        zz = data[zmb_idx]
-        zz = zz[0,...]
-        ff = np.asarray(_vgg(floatX(imb)))
-        print "Done"
-        sys.exit()
+        # imb = data[patches_idx]
+        z = data[zmb_idx]
+        zmb = floatX(z)
+        cost = _train_g(zmb)
 
         # imb = data[patches_idx]
         # imb = transform(imb, npx)
