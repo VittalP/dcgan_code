@@ -36,7 +36,7 @@ l2 = 1e-5         # l2 weight decay
 nvis = 196        # # of samples to visualize during training
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nbatch = 128      # # of examples in batch
+nbatch = 10      # # of examples in batch
 npx = 64          # # of pixels width/height of images
 # nz is set later by looking at the feature vector length
 # nz = 100          # # of dim for Z
@@ -49,7 +49,7 @@ lr = 0.002       # initial learning rate for adam
 vggp4x = 100
 desc = 'vgg_recon'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
-tr_data, tr_stream = visual_concepts(path, ntrain=None)
+tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
 patches_idx = tr_stream.dataset.provides_sources.index('patches')
 labels_idx = tr_stream.dataset.provides_sources.index('labels')
@@ -105,14 +105,15 @@ iter_array = range(niter)
 X = T.tensor4()
 Z = T.matrix()
 
-def my_center_crop(x, vggp4x):
-    return center_crop(x, vggp4x)
-
 gX = models.gen(Z, *gen_params)
-invGX = inverse_transform(gX, 3, 64)
-invGX_UP = T.nnet.abstract_conv.bilinear_upsampling(invGX, ratio=2, batch_size=nbatch, num_input_channels=3)
-invGX_center = theano.scan(lambda x: x[:, 14:114, 14:114], sequences=invGX_UP)
-gF = models.vggPool4(invGX_center, *vgg_params)
+gX_UP = T.nnet.abstract_conv.bilinear_upsampling(gX, ratio=2, batch_size=nbatch, num_input_channels=3)
+invGX_UP = inverse_transform(gX_UP, 3, 128)
+invGX_center, _u = theano.scan(lambda x: x[14:114, 14:114, :], sequences=invGX_UP) # Crops the center patch
+
+# prepare data for VGG
+vgg_data = invGX_center - floatX(np.asarray((104.00698793,116.66876762,122.67891434)))
+vgg_data = vgg_data.dimshuffle((0,3,1,2))
+gF = T.extra_ops.squeeze(models.vggPool4(vgg_data, *vgg_params))
 
 g_cost = T.mean(T.sum(T.pow(Z-gF, 2)))
 
@@ -152,6 +153,9 @@ for epoch in iter_array:
             continue;
         # imb = data[patches_idx]
         z = data[zmb_idx]
+        break
+        print z.shape
+        sys.exit()
         zmb = floatX(z)
         cost = _train_g(zmb)
 
