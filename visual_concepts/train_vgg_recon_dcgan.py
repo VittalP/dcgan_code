@@ -105,10 +105,13 @@ iter_array = range(niter)
 X = T.tensor4()
 Z = T.matrix()
 
+def my_center_crop(x, vggp4x):
+    return center_crop(x, vggp4x)
+
 gX = models.gen(Z, *gen_params)
 invGX = inverse_transform(gX, 3, 64)
 invGX_UP = T.nnet.abstract_conv.bilinear_upsampling(invGX, ratio=2, batch_size=nbatch, num_input_channels=3)
-invGX_center = theano.scan(center_crop(x, vggp4x), sequences=invGX_UP)
+invGX_center = theano.scan(lambda x: x[:, 14:114, 14:114], sequences=invGX_UP)
 gF = models.vggPool4(invGX_center, *vgg_params)
 
 g_cost = T.mean(T.sum(T.pow(Z-gF, 2)))
