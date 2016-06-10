@@ -130,12 +130,7 @@ print '%.2f seconds to compile theano functions'%(time()-t)
 f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
     'n_epochs',
-    'n_updates',
-    'n_examples',
     'n_seconds',
-    '1k_va_nnd',
-    '10k_va_nnd',
-    '100k_va_nnd',
     'g_cost'
 ]
 
@@ -151,33 +146,12 @@ for epoch in iter_array:
     for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
         if data[patches_idx].shape[0] != nbatch:
             continue;
-        # imb = data[patches_idx]
         z = data[zmb_idx]
-        break
-        print z.shape
-        sys.exit()
         zmb = floatX(z)
-        cost = _train_g(zmb)
+        cost = float(_train_g(zmb))
 
-        # imb = data[patches_idx]
-        # imb = transform(imb, npx)
-        #
-        # zmb = floatX(data[zmb_idx])
-        #
-        # samples = np.asarray(_gen(zmb))
-        # imb_g = inverse_transform(samples, nc, npx)
-        #
-        # realF = models.getVGGFeat(vgg16_net, imb)
-        # # realF = realF / np.linalg.norm(realF)
-        # genF = models.getVGGFeat(vgg16_net, imb_g)
-        # # genF = genF / np.linalg.norm(genF)
-        #
-        # cost = _train_g(imb, zmb, realF, genF)
-        # n_updates += 1
-        # n_examples += len(imb)
-        # g_cost = float(cost[0])
-
-    print '%.0f %.4f %.4f' % (epoch, g_cost)
+    print '%.0f %.4f %.4f' % (epoch, cost)
+    log = [n_epochs, time() - t, cost]
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
 
