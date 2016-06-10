@@ -36,7 +36,7 @@ l2 = 1e-5         # l2 weight decay
 nvis = 196        # # of samples to visualize during training
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nbatch = 10      # # of examples in batch
+nbatch = 128      # # of examples in batch
 npx = 64          # # of pixels width/height of images
 # nz is set later by looking at the feature vector length
 # nz = 100          # # of dim for Z
@@ -113,7 +113,7 @@ invGX_center, _u = theano.scan(lambda x: x[14:114, 14:114, :], sequences=invGX_U
 # prepare data for VGG
 vgg_data = invGX_center - floatX(np.asarray((104.00698793,116.66876762,122.67891434)))
 vgg_data = vgg_data.dimshuffle((0,3,1,2))
-gF = T.extra_ops.squeeze(models.vggPool4(vgg_data, *vgg_params))
+gF = T.reshape(models.vggPool4(vgg_data, *vgg_params), (nbatch, nz))
 
 g_cost = T.mean(T.sum(T.pow(Z-gF, 2)))
 
