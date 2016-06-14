@@ -47,7 +47,7 @@ niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_recon_' + str(lr)
+desc = 'vgg_recon'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -110,7 +110,7 @@ Z = T.matrix()
 
 gX = models.gen(Z, *gen_params)
 gX_UP = T.nnet.abstract_conv.bilinear_upsampling(gX, ratio=2, batch_size=nbatch, num_input_channels=3)
-invGX_UP = inverse_transform(gX_UP, 3, 128)*255
+invGX_UP = inverse_transform(gX_UP, 3, 128)*floatX(np.asarray((255)))
 invGX_center, _u = theano.scan(lambda x: x[14:114, 14:114, :], sequences=invGX_UP) # Crops the center patch
 
 # prepare data for VGG
