@@ -61,6 +61,9 @@ if "orig" in desc:
 else:
     zmb_idx = feat_l2_idx
 
+tr_handle = tr_data.open()
+data = tr_data.get_data(tr_handle, slice(0, 10000))
+
 nvc = 176 # Visual concepts
 nz = 512
 ntrain = tr_data.num_examples  # # of examples to train on
@@ -127,6 +130,9 @@ t = time()
 _train_g = theano.function([Z], g_cost, updates=g_updates)
 print '%.2f seconds to compile theano functions'%(time()-t)
 
+vis_idxs = py_rng.sample(np.arange(10000), nvis)
+sample_zmb = floatX(data[zmb_idx][vis_idxs,:])
+
 f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
     'n_epochs',
@@ -150,7 +156,7 @@ for epoch in iter_array:
         zmb = floatX(z)
         cost = float(_train_g(zmb))
 
-    print '%.0f %.4f %.4f' % (epoch, cost)
+    print '%.0f %.4f' % (epoch, cost)
     log = [n_epochs, time() - t, cost]
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
