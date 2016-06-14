@@ -45,9 +45,9 @@ ndf = 128         # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
-lr = 0.002       # initial learning rate for adam
+lr = 0.0002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_recon'
+desc = 'vgg_recon_' + str(lr)
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -110,7 +110,7 @@ Z = T.matrix()
 
 gX = models.gen(Z, *gen_params)
 gX_UP = T.nnet.abstract_conv.bilinear_upsampling(gX, ratio=2, batch_size=nbatch, num_input_channels=3)
-invGX_UP = inverse_transform(gX_UP, 3, 128)
+invGX_UP = inverse_transform(gX_UP, 3, 128)*255
 invGX_center, _u = theano.scan(lambda x: x[14:114, 14:114, :], sequences=invGX_UP) # Crops the center patch
 
 # prepare data for VGG
@@ -128,6 +128,7 @@ updates = g_updates
 print 'COMPILING'
 t = time()
 _train_g = theano.function([Z], g_cost, updates=g_updates)
+_gen = theano.function([Z], gX)
 print '%.2f seconds to compile theano functions'%(time()-t)
 
 vis_idxs = py_rng.sample(np.arange(10000), nvis)
@@ -168,4 +169,3 @@ for epoch in iter_array:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
     if n_epochs % 5 == 0:
         joblib.dump([p.get_value() for p in gen_params], 'models/%s/%d_gen_params.jl'%(desc, n_epochs))
-        joblib.dump([p.get_value() for p in discrim_params], 'models/%s/%d_discrim_params.jl'%(desc, n_epochs))
