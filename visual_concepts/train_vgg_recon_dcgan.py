@@ -118,7 +118,15 @@ vgg_data = invGX_center - floatX(np.asarray((104.00698793,116.66876762,122.67891
 vgg_data = vgg_data.dimshuffle((0,3,1,2))
 gF = T.reshape(models.vggPool4(vgg_data, *vgg_params), (nbatch, nz))
 
-g_cost = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
+# g_cost = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
+
+def cosine(A,B):
+    numer = T.sum(A*B, axis=1)
+    deno = T.sqrt( T.sum(A*A, axis=1) * T.sum(B*B, axis=1) )
+    dis = T.mean(1. - numer/deno)
+    return dis
+
+g_cost = cosine(Z, gF)
 
 lrt = sharedX(lr)
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
@@ -157,7 +165,7 @@ for epoch in iter_array:
         zmb = floatX(z)
         cost = float(_train_g(zmb))
 
-    print '%.0f %.4f' % (epoch, cost)
+    print '%.0f %f' % (epoch, cost)
     log = [n_epochs, time() - t, cost]
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
