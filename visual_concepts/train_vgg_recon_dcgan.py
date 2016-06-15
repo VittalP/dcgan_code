@@ -118,7 +118,7 @@ vgg_data = invGX_center - floatX(np.asarray((104.00698793,116.66876762,122.67891
 vgg_data = vgg_data.dimshuffle((0,3,1,2))
 gF = T.reshape(models.vggPool4(vgg_data, *vgg_params), (nbatch, nz))
 
-g_cost = T.mean(T.sum(T.pow(Z-gF, 2)))
+g_cost = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
 
 lrt = sharedX(lr)
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
