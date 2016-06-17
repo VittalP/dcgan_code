@@ -88,6 +88,7 @@ difn = inits.Normal(scale=0.02)
 gain_ifn = inits.Normal(loc=1., scale=0.02)
 bias_ifn = inits.Constant(c=0.)
 
+# Generative model parameters
 gw  = gifn((nz, ngf*8*4*4), 'gw')
 gg = gain_ifn((ngf*8*4*4), 'gg')
 gb = bias_ifn((ngf*8*4*4), 'gb')
@@ -102,13 +103,40 @@ gg4 = gain_ifn((ngf), 'gg4')
 gb4 = bias_ifn((ngf), 'gb4')
 gwx = gifn((ngf, nc, 5, 5), 'gwx')
 
+# Discriminative model parameters
+dw  = difn((ndf, nc, 5, 5), 'dw')
+dw2 = difn((ndf*2, ndf, 5, 5), 'dw2')
+dg2 = gain_ifn((ndf*2), 'dg2')
+db2 = bias_ifn((ndf*2), 'db2')
+dw3 = difn((ndf*4, ndf*2, 5, 5), 'dw3')
+dg3 = gain_ifn((ndf*4), 'dg3')
+db3 = bias_ifn((ndf*4), 'db3')
+dw4 = difn((ndf*8, ndf*4, 5, 5), 'dw4')
+dg4 = gain_ifn((ndf*8), 'dg4')
+db4 = bias_ifn((ndf*8), 'db4')
+dwy = difn((ndf*8*4*4, 1), 'dwy')
+dwmy = difn((ndf*8*4*4, 1), 'dwmy')
+
 gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
+discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy, dwmy]
 iter_array = range(niter)
 
 X = T.tensor4()
 Z = T.matrix()
 
 gX = models.gen(Z, *gen_params)
+
+# Adversarial training
+p_real = models.discrim(X, *discrim_params)
+p_gen = models.discrim(gX, *discrim_params)
+
+bce = T.nnet.binary_crossentropy
+cce = T.nnet.categorical_crossentropy
+d_cost_real = bce(p_real, T.ones(p_real.shape)).mean()
+d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
+g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
+
+# VGG recon loss
 gX_UP = T.nnet.abstract_conv.bilinear_upsampling(gX, ratio=2, batch_size=nbatch, num_input_channels=3)
 invGX_UP = inverse_transform(gX_UP, 3, 128)*floatX(np.asarray((255)))
 invGX_center, _u = theano.scan(lambda x: x[14:114, 14:114, :], sequences=invGX_UP) # Crops the center patch
@@ -117,11 +145,15 @@ invGX_center, _u = theano.scan(lambda x: x[14:114, 14:114, :], sequences=invGX_U
 vgg_data = invGX_center - floatX(np.asarray((104.00698793,116.66876762,122.67891434)))
 vgg_data = vgg_data.dimshuffle((0,3,1,2))
 gF = T.reshape(models.vggPool4(vgg_data, *vgg_params), (nbatch, nz))
+g_cost_vgg_recon = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
 
-g_cost = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
+d_cost = d_cost_real + d_cost_gen
+g_cost = g_cost_vgg_recon + g_cost_d
 
 lrt = sharedX(lr)
+d_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
+d_updates = d_updater(discrim_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = g_updates
 
