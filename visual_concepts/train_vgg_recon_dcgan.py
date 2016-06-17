@@ -47,7 +47,7 @@ niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_recon'
+desc = 'vgg_adv_recon'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -158,16 +158,19 @@ def cosine(A,B):
 d_cost = d_cost_real + d_cost_gen
 g_cost = g_cost_vgg_recon + g_cost_d
 
+cost = [g_cost, d_cost]
+
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 d_updates = d_updater(discrim_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
-updates = g_updates
+updates = g_updates + d_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([Z], g_cost, updates=g_updates)
+_train_g = theano.function([X, Z], cost, updates=g_updates)
+_train_d = theano.function([X, Z], cost, updates=d_updates)
 _gen = theano.function([Z], gX)
 print '%.2f seconds to compile theano functions'%(time()-t)
 
@@ -178,7 +181,8 @@ f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
     'n_epochs',
     'n_seconds',
-    'g_cost'
+    'g_cost',
+    'd_cost'
 ]
 
 print desc.upper()
@@ -193,12 +197,25 @@ for epoch in iter_array:
     for data in tqdm(tr_stream.get_epoch_iterator(), total=ntrain/nbatch):
         if data[patches_idx].shape[0] != nbatch:
             continue;
+        # Collect batch
+        imb = data[patches_idx]
+        imb = transform(imb, npx)
+
         z = data[zmb_idx]
         zmb = floatX(z)
-        cost = float(_train_g(zmb))
 
-    print '%.0f %f' % (epoch, cost)
-    log = [n_epochs, time() - t, cost]
+        # Train
+        if n_updates % (k+1) == 0:
+            cost = _train_g(imb, zmb)
+        else:
+            cost = _train_d(imb, zmb)
+
+        n_updates += 1
+    g_cost = float(cost[0])
+    d_cost = float(cost[1])
+
+    print '%.0f %f %f' % (epoch, g_cost, d_cost)
+    log = [n_epochs, time() - t, g_cost, d_cost]
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
 
