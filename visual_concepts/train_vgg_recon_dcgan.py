@@ -115,7 +115,7 @@ dw4 = difn((ndf*8, ndf*4, 5, 5), 'dw4')
 dg4 = gain_ifn((ndf*8), 'dg4')
 db4 = bias_ifn((ndf*8), 'db4')
 dwy = difn((ndf*8*4*4, 1), 'dwy')
-dwmy = difn((ndf*8*4*4, 1), 'dwmy')
+dwmy = difn((ndf*8*4*4, nvc), 'dwmy')
 
 gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
 discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy, dwmy]
@@ -127,8 +127,8 @@ Z = T.matrix()
 gX = models.gen(Z, *gen_params)
 
 # Adversarial training
-p_real = models.discrim(X, *discrim_params)
-p_gen = models.discrim(gX, *discrim_params)
+p_real, p_real_multi = models.discrim(X, *discrim_params)
+p_gen, p_gen_multi = models.discrim(gX, *discrim_params)
 
 bce = T.nnet.binary_crossentropy
 cce = T.nnet.categorical_crossentropy
@@ -163,7 +163,7 @@ cost = [g_cost, d_cost]
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
-d_updates = d_updater(discrim_params, d_cost)
+d_updates = d_updater(discrim_params[:-1], d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = g_updates + d_updates
 
