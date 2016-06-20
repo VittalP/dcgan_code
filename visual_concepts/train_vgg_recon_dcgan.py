@@ -47,7 +47,7 @@ niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_adv_recon'
+desc = 'vgg_adv'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -156,7 +156,7 @@ def cosine(A,B):
 # g_cost_cosine = cosine(Z, gF)
 
 d_cost = d_cost_real + d_cost_gen
-g_cost = g_cost_vgg_recon + g_cost_d
+g_cost = g_cost_d
 
 cost = [g_cost, d_cost]
 
