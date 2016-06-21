@@ -47,7 +47,7 @@ niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_adv_cos'
+desc = 'vgg_adv_cos_recon'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -146,6 +146,7 @@ vgg_data = invGX_center - floatX(np.asarray((104.00698793,116.66876762,122.67891
 vgg_data = vgg_data.dimshuffle((0,3,1,2))
 gF = T.reshape(models.vggPool4(vgg_data, *vgg_params), (nbatch, nz))
 g_cost_vgg_recon = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
+g_cost_recon = T.mean(T.sqr(gX - X))
 
 def cosine(A,B):
     numer = T.sum(A*B, axis=1)
@@ -156,7 +157,7 @@ def cosine(A,B):
 g_cost_cosine = cosine(Z, gF)
 
 d_cost = d_cost_real + d_cost_gen
-g_cost = g_cost_d + g_cost_cosine
+g_cost = g_cost_d + g_cost_cosine + g_cost_recon
 
 cost = [g_cost, d_cost]
 
