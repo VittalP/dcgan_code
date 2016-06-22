@@ -29,15 +29,15 @@ def gen(Z, w, g, b, w2, g2, b2, w3, g3, b3, w4, g4, b4, wx):
     x = tanh(deconv(h4, wx, subsample=(2, 2), border_mode=(2, 2)))
     return x
 
-def discrim(X, w, w2, g2, b2, w3, g3, b3, w4, g4, b4, wy, wmy):
+def discrim(X, w, w2, g2, b2, w3, g3, b3, w4, g4, b4, wmy):
     h = lrelu(dnn_conv(X, w, subsample=(2, 2), border_mode=(2, 2)))
     h2 = lrelu(batchnorm(dnn_conv(h, w2, subsample=(2, 2), border_mode=(2, 2)), g=g2, b=b2))
     h3 = lrelu(batchnorm(dnn_conv(h2, w3, subsample=(2, 2), border_mode=(2, 2)), g=g3, b=b3))
     h4 = lrelu(batchnorm(dnn_conv(h3, w4, subsample=(2, 2), border_mode=(2, 2)), g=g4, b=b4))
     h4 = T.flatten(h4, 2)
-    y = sigmoid(T.dot(h4, wy))
+    # y = sigmoid(T.dot(h4, wy))
     multi_y = softmax(T.dot(h4, wmy))
-    return y, multi_y
+    return multi_y
 
 def vggPool4(X, conv1_1_w, conv1_1_b, conv1_2_w, conv1_2_b, conv2_1_w, conv2_1_b, conv2_2_w, conv2_2_b, conv3_1_w, conv3_1_b, conv3_2_w, conv3_2_b, conv3_3_w, conv3_3_b, conv4_1_w, conv4_1_b, conv4_2_w, conv4_2_b, conv4_3_w, conv4_3_b):
     feat1 = T.signal.pool.pool_2d(relu(conv_with_bias(relu(conv_with_bias(X, conv1_1_w, conv1_1_b)), conv1_2_w, conv1_2_b)), ds=(2,2), ignore_border=True, mode='max')

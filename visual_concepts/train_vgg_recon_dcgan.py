@@ -47,7 +47,7 @@ niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_adv_cos'
+desc = 'vgg_orig_multi_adv_cos'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -115,26 +115,32 @@ dw4 = difn((ndf*8, ndf*4, 5, 5), 'dw4')
 dg4 = gain_ifn((ndf*8), 'dg4')
 db4 = bias_ifn((ndf*8), 'db4')
 dwy = difn((ndf*8*4*4, 1), 'dwy')
-dwmy = difn((ndf*8*4*4, nvc), 'dwmy')
+dwmy = difn((ndf*8*4*4, nvc*2), 'dwmy')
 
 gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
-discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy, dwmy]
+discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwmy]
 iter_array = range(niter)
 
 X = T.tensor4()
 Z = T.matrix()
+Y = T.matrix()
 
 gX = models.gen(Z, *gen_params)
 
 # Adversarial training
-p_real, p_real_multi = models.discrim(X, *discrim_params)
-p_gen, p_gen_multi = models.discrim(gX, *discrim_params)
+p_real_multi = models.discrim(X, *discrim_params)
+p_gen_multi = models.discrim(gX, *discrim_params)
 
 bce = T.nnet.binary_crossentropy
 cce = T.nnet.categorical_crossentropy
-d_cost_real = bce(p_real, T.ones(p_real.shape)).mean()
-d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
-g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
+# d_cost_real = bce(p_real, T.ones(p_real.shape)).mean()
+# d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
+
+d_cost_real = cce(p_real_multi, T.concatenate([Y, T.zeros((p_real_multi.shape[0], nvc))], axis=1)).mean()
+d_cost_gen = cce(p_gen_multi, T.concatenate([T.zeros((p_gen_multi.shape[0], nvc)), Y], axis=1)).mean()
+
+# g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
+g_cost_d = cce(p_gen_multi, T.concatenate([Y, T.zeros((p_gen_multi.shape[0], nvc))], axis=1)).mean()
 
 # VGG recon loss
 gX_UP = T.nnet.abstract_conv.bilinear_upsampling(gX, ratio=2, batch_size=nbatch, num_input_channels=3)
@@ -158,19 +164,19 @@ g_cost_cosine = cosine(Z, gF)
 d_cost = d_cost_real + d_cost_gen
 g_cost = g_cost_d + g_cost_cosine
 
-cost = [g_cost, d_cost]
+cost = [d_cost, g_cost_d, g_cost_cosine]
 
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
-d_updates = d_updater(discrim_params[:-1], d_cost)
+d_updates = d_updater(discrim_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = g_updates + d_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([X, Z], cost, updates=g_updates)
-_train_d = theano.function([X, Z], cost, updates=d_updates)
+_train_g = theano.function([X, Y, Z], cost, updates=g_updates)
+_train_d = theano.function([X, Y, Z], cost, updates=d_updates)
 _gen = theano.function([Z], gX)
 print '%.2f seconds to compile theano functions'%(time()-t)
 
@@ -181,8 +187,9 @@ f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
     'n_epochs',
     'n_seconds',
-    'g_cost',
-    'd_cost'
+    'd_cost',
+    'g_cost_d',
+    'g_cost_cosine'
 ]
 
 print desc.upper()
@@ -204,18 +211,28 @@ for epoch in iter_array:
         z = data[zmb_idx]
         zmb = floatX(z)
 
+        labels = data[labels_idx]
+        label_stack = np.array([], dtype=np.uint8).reshape(0,nvc)
+        for label in labels:
+            hot_vec = np.zeros((1,nvc), dtype=np.uint8)
+            hot_vec[0,label-1] = 1 # labels are 1-nvc
+            label_stack = np.vstack((label_stack, hot_vec))
+
+        ymb = label_stack
+
         # Train
         if n_updates % (k+1) == 0:
-            cost = _train_g(imb, zmb)
+            cost = _train_g(imb, ymb, zmb)
         else:
-            cost = _train_d(imb, zmb)
+            cost = _train_d(imb, ymb, zmb)
 
         n_updates += 1
-    g_cost = float(cost[0])
-    d_cost = float(cost[1])
+    d_cost = float(cost[0])
+    g_cost_d = float(cost[1])
+    g_cost_cosine = float(cost[2])
 
-    print '%.0f %f %f' % (epoch, g_cost, d_cost)
-    log = [n_epochs, time() - t, g_cost, d_cost]
+    print '%.0f %f %f %f' % (epoch, d_cost, g_cost_d, g_cost_cosine)
+    log = [n_epochs, time() - t, d_cost, g_cost_d, g_cost_cosine]
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
 
