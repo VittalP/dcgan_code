@@ -4,7 +4,6 @@ from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, l2normalize, c
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv
 
-from lib.config import caffe_dir
 import sys
 import os
 import numpy as np
