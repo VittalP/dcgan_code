@@ -8,8 +8,6 @@ from lib.config import caffe_dir
 import sys
 import os
 import numpy as np
-sys.path.append(caffe_dir + 'python')
-import caffe
 
 relu = activations.Rectify()
 sigmoid = activations.Sigmoid()
