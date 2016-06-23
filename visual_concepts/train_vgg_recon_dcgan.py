@@ -45,9 +45,10 @@ ndf = 128         # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 50        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
-lr = 0.0002       # initial learning rate for adam
+lr_d = 0.0002       # initial learning rate for adam
+lr_g = 0.002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_orig_multi_adv_cos'
+desc = 'vgg_orig_multi_adv_cos_lrg'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -165,9 +166,10 @@ g_cost_cosine = cosine(Z, gF)
 d_cost = d_cost_real + d_cost_gen
 g_cost = g_cost_d + g_cost_cosine
 
-cost = [d_cost, g_cost_d, g_cost_cosine]
+cost = [d_cost_real, d_cost_gen, g_cost_d, g_cost_cosine]
 
-lrt = sharedX(lr)
+lrt_d = sharedX(lr_d)
+lrt_g = sharedX(lr_g)
 d_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
 d_updates = d_updater(discrim_params, d_cost)
@@ -188,7 +190,8 @@ f_log = open('logs/%s.ndjson'%desc, 'wb')
 log_fields = [
     'n_epochs',
     'n_seconds',
-    'd_cost',
+    'd_cost_real',
+    'd_cost_gen'
     'g_cost_d',
     'g_cost_cosine'
 ]
@@ -228,12 +231,13 @@ for epoch in iter_array:
             cost = _train_d(imb, ymb, zmb)
 
         n_updates += 1
-    d_cost = float(cost[0])
-    g_cost_d = float(cost[1])
-    g_cost_cosine = float(cost[2])
+    d_cost_real = float(cost[0])
+    d_cost_gen = float(cost[1])
+    g_cost_d = float(cost[2])
+    g_cost_cosine = float(cost[3])
 
-    print '%.0f %f %f %f' % (epoch, d_cost, g_cost_d, g_cost_cosine)
-    log = [n_epochs, time() - t, d_cost, g_cost_d, g_cost_cosine]
+    print '%.0f %f %f %f %f' % (epoch, d_cost, g_cost_d, g_cost_cosine)
+    log = [n_epochs, time() - t, d_cost_real, d_cost_gen, g_cost_d, g_cost_cosine]
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
 
