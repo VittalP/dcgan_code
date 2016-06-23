@@ -48,7 +48,7 @@ niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr_d = 0.0002       # initial learning rate for adam
 lr_g = 0.002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_orig_multi_adv_cos_lrg'
+desc = 'vgg_l2_multi_adv_cos_lrg'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -170,8 +170,8 @@ cost = [d_cost_real, d_cost_gen, g_cost_d, g_cost_cosine]
 
 lrt_d = sharedX(lr_d)
 lrt_g = sharedX(lr_g)
-d_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
-g_updater = updates.Adam(lr=lrt, b1=b1, regularizer=updates.Regularizer(l2=l2))
+d_updater = updates.Adam(lr=lrt_d, b1=b1, regularizer=updates.Regularizer(l2=l2))
+g_updater = updates.Adam(lr=lrt_g, b1=b1, regularizer=updates.Regularizer(l2=l2))
 d_updates = d_updater(discrim_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = g_updates + d_updates
@@ -236,7 +236,7 @@ for epoch in iter_array:
     g_cost_d = float(cost[2])
     g_cost_cosine = float(cost[3])
 
-    print '%.0f %f %f %f %f' % (epoch, d_cost, g_cost_d, g_cost_cosine)
+    print '%.0f %f %f %f %f' % (epoch, d_cost_real, d_cost_gen, g_cost_d, g_cost_cosine)
     log = [n_epochs, time() - t, d_cost_real, d_cost_gen, g_cost_d, g_cost_cosine]
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
