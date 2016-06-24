@@ -43,12 +43,12 @@ npx = 64          # # of pixels width/height of images
 ngf = 128         # # of gen filters in first conv layer
 ndf = 128         # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 50        # # of iter at starting learning rate
+niter = 100        # # of iter at starting learning rate
 niter_decay = 0   # # of iter to linearly decay learning rate to zero
 lr_d = 0.0002       # initial learning rate for adam
-lr_g = 0.002       # initial learning rate for adam
+lr_g = 0.0002       # initial learning rate for adam
 vggp4x = 100
-desc = 'vgg_l2_multi_adv_cos_lrg'
+desc = 'vgg_l2_tyres_adv_cos'
 path = os.path.join(data_dir, "vc.hdf5")  # Change path to visual concepts file
 tr_data, tr_stream = visual_concepts(path, ntrain=None, batch_size=nbatch)
 
@@ -68,7 +68,7 @@ data = tr_data.get_data(tr_handle, slice(0, 10000))
 nvc = 176 # Visual concepts
 nz = 512
 ntrain = tr_data.num_examples  # # of examples to train on
-
+ntrain = 26078
 model_dir = 'models/%s'%desc
 samples_dir = 'samples/%s'%desc
 if not os.path.exists('logs/'):
@@ -119,7 +119,7 @@ dwy = difn((ndf*8*4*4, 1), 'dwy')
 dwmy = difn((ndf*8*4*4, nvc*2), 'dwmy')
 
 gen_params = [gw, gg, gb, gw2, gg2, gb2, gw3, gg3, gb3, gw4, gg4, gb4, gwx]
-discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwmy]
+discrim_params = [dw, dw2, dg2, db2, dw3, dg3, db3, dw4, dg4, db4, dwy]
 iter_array = range(niter)
 
 X = T.tensor4()
@@ -129,19 +129,19 @@ Y = T.matrix()
 gX = models.gen(Z, *gen_params)
 
 # Adversarial training
-p_real_multi = models.discrim(X, *discrim_params)
-p_gen_multi = models.discrim(gX, *discrim_params)
+p_real = models.discrim(X, *discrim_params)
+p_gen = models.discrim(gX, *discrim_params)
 
 bce = T.nnet.binary_crossentropy
 cce = T.nnet.categorical_crossentropy
-# d_cost_real = bce(p_real, T.ones(p_real.shape)).mean()
-# d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
+d_cost_real = bce(p_real, T.ones(p_real.shape)).mean()
+d_cost_gen = bce(p_gen, T.zeros(p_gen.shape)).mean()
 
-d_cost_real = cce(p_real_multi, T.concatenate([Y, T.zeros((p_real_multi.shape[0], nvc))], axis=1)).mean()
-d_cost_gen = cce(p_gen_multi, T.concatenate([T.zeros((p_gen_multi.shape[0], nvc)), Y], axis=1)).mean()
+# d_cost_real = cce(p_real_multi, T.concatenate([Y, T.zeros((p_real_multi.shape[0], nvc))], axis=1)).mean()
+# d_cost_gen = cce(p_gen_multi, T.concatenate([T.zeros((p_gen_multi.shape[0], nvc)), Y], axis=1)).mean()
 
-# g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
-g_cost_d = cce(p_gen_multi, T.concatenate([Y, T.zeros((p_gen_multi.shape[0], nvc))], axis=1)).mean()
+g_cost_d = bce(p_gen, T.ones(p_gen.shape)).mean()
+# g_cost_d = cce(p_gen_multi, T.concatenate([Y, T.zeros((p_gen_multi.shape[0], nvc))], axis=1)).mean()
 
 # VGG recon loss
 gX_UP = T.nnet.abstract_conv.bilinear_upsampling(gX, ratio=2, batch_size=nbatch, num_input_channels=3)
@@ -152,8 +152,8 @@ invGX_center, _u = theano.scan(lambda x: x[14:114, 14:114, :], sequences=invGX_U
 vgg_data = invGX_center - floatX(np.asarray((104.00698793,116.66876762,122.67891434)))
 vgg_data = vgg_data.dimshuffle((0,3,1,2))
 gF = T.reshape(models.vggPool4(vgg_data, *vgg_params), (nbatch, nz))
-g_cost_vgg_recon = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
-g_cost_recon = T.mean(T.sqr(gX - X))
+# g_cost_vgg_recon = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
+# g_cost_recon = T.mean(T.sqr(gX - X))
 
 def cosine(A,B):
     numer = T.sum(A*B, axis=1)
@@ -178,8 +178,8 @@ updates = g_updates + d_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([X, Y, Z], cost, updates=g_updates)
-_train_d = theano.function([X, Y, Z], cost, updates=d_updates)
+_train_g = theano.function([X, Z], cost, updates=g_updates)
+_train_d = theano.function([X, Z], cost, updates=d_updates)
 _gen = theano.function([Z], gX)
 print '%.2f seconds to compile theano functions'%(time()-t)
 
@@ -209,26 +209,29 @@ for epoch in iter_array:
         if data[patches_idx].shape[0] != nbatch:
             continue;
         # Collect batch
+        labels = data[labels_idx]
+        idx = np.in1d(labels, range(11,176))
+        if np.sum(idx) > 0:
+            print "Something wrong"
         imb = data[patches_idx]
         imb = transform(imb, npx)
 
         z = data[zmb_idx]
         zmb = floatX(z)
-
-        labels = data[labels_idx]
-        label_stack = np.array([], dtype=np.uint8).reshape(0,nvc)
-        for label in labels:
-            hot_vec = np.zeros((1,nvc), dtype=np.uint8)
-            hot_vec[0,label-1] = 1 # labels are 1-nvc
-            label_stack = np.vstack((label_stack, hot_vec))
-
-        ymb = label_stack
+        #
+        # label_stack = np.array([], dtype=np.uint8).reshape(0,nvc)
+        # for label in labels:
+        #     hot_vec = np.zeros((1,nvc), dtype=np.uint8)
+        #     hot_vec[0,label-1] = 1 # labels are 1-nvc
+        #     label_stack = np.vstack((label_stack, hot_vec))
+        #
+        # ymb = label_stack
 
         # Train
         if n_updates % (k+1) == 0:
-            cost = _train_g(imb, ymb, zmb)
+            cost = _train_g(imb, zmb)
         else:
-            cost = _train_d(imb, ymb, zmb)
+            cost = _train_d(imb, zmb)
 
         n_updates += 1
     d_cost_real = float(cost[0])

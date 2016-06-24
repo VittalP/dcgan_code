@@ -12,8 +12,9 @@ def visual_concepts(path, ntrain=None, nval=None, batch_size=128):
     tr_data = H5PYDataset(path, which_sets=('train',))
 
     ntrain = tr_data.num_examples
+    ntrain = 26078
 
-    tr_scheme = ShuffledScheme(examples=ntrain, batch_size=batch_size)
+    tr_scheme = SequentialScheme(examples=ntrain, batch_size=batch_size)
     tr_stream = DataStream(tr_data, iteration_scheme=tr_scheme)
 
     return tr_data, tr_stream
