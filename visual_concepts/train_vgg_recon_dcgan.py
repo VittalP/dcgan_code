@@ -166,7 +166,7 @@ def cosine(A,B):
 d_cost = d_cost_real + d_cost_gen
 g_cost = g_cost_d + g_cost_vgg_recon
 
-cost = [d_cost_real, d_cost_gen, g_cost_d, g_cost_cosine]
+cost = [d_cost_real, d_cost_gen, g_cost_d, g_cost_vgg_recon]
 
 lrt_d = sharedX(lr_d)
 lrt_g = sharedX(lr_g)
@@ -237,10 +237,10 @@ for epoch in iter_array:
     d_cost_real = float(cost[0])
     d_cost_gen = float(cost[1])
     g_cost_d = float(cost[2])
-    g_cost_cosine = float(cost[3])
+    g_cost_vgg_recon = float(cost[3])
 
-    print '%.0f %f %f %f %f' % (epoch, d_cost_real, d_cost_gen, g_cost_d, g_cost_cosine)
-    log = [n_epochs, time() - t, d_cost_real, d_cost_gen, g_cost_d, g_cost_cosine]
+    print '%.0f %f %f %f %f' % (epoch, d_cost_real, d_cost_gen, g_cost_d, g_cost_vgg_recon)
+    log = [n_epochs, time() - t, d_cost_real, d_cost_gen, g_cost_d, g_cost_vgg_recon]
     f_log.write(json.dumps(dict(zip(log_fields, log)))+'\n')
     f_log.flush()
 
