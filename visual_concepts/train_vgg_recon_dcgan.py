@@ -152,6 +152,10 @@ invGX_center, _u = theano.scan(lambda x: x[14:114, 14:114, :], sequences=invGX_U
 vgg_data = invGX_center - floatX(np.asarray((104.00698793,116.66876762,122.67891434)))
 vgg_data = vgg_data.dimshuffle((0,3,1,2))
 gF = T.reshape(models.vggPool4(vgg_data, *vgg_params), (nbatch, nz))
+
+if 'l2' in desc:
+    gF = gF / gF.sum(axis=1).reshape((gF.shape[0], 1))
+
 g_cost_vgg_recon = T.mean(T.sum(T.pow(Z-gF, 2), axis=1))
 # g_cost_recon = T.mean(T.sqr(gX - X))
 
