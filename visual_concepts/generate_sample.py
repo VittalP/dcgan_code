@@ -18,7 +18,7 @@ import os
 
 dcgan_root = "/mnt/disk1/vittal/gamn/visual_concepts/"
 
-desc = "vgg_l2_tyres_adv_cos"
+desc = "vgg_l2_tyres_adv_euc"
 model_dir = dcgan_root + '/models/%s/'%desc
 model_number = "95_gen_params.jl"
 gen_params_np = joblib.load(model_dir + model_number)
